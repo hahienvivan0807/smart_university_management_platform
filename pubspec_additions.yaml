@@ -1,0 +1,22 @@
+# Add these to your existing pubspec.yaml under `dependencies:`.
+# Versions are recent stable as of this writing; run `flutter pub get` after.
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  http: ^1.2.2                  # API calls (you may already have `dio` instead)
+  flutter_secure_storage: ^9.2.2  # Keychain / EncryptedSharedPreferences
+
+# --- Platform notes for flutter_secure_storage -------------------------------
+#
+# Android: requires minSdkVersion >= 18 (you almost certainly already have
+#   this). For EncryptedSharedPreferences (enabled in TokenStorage) the plugin
+#   needs minSdk 18+; no extra setup beyond that.
+#
+# iOS / macOS: works out of the box. For macOS you must enable the Keychain
+#   Sharing capability (or at least the Keychain entitlement) in Xcode, or
+#   reads/writes silently fail on macOS desktop builds.
+#
+# Web: flutter_secure_storage uses an experimental WebCrypto-backed store.
+#   It works for dev but is not as hardened as native; fine for this project.

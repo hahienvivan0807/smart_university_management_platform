@@ -1,3 +1,6 @@
+# Claude Code AI memory (không commit)
+.claude/
+
 # Miscellaneous
 *.class
 *.log
