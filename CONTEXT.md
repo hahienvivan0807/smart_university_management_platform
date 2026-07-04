@@ -220,36 +220,42 @@ Vì `ProfileService.TaoProfileGVAsync/TaoProfileSVAsync` yêu cầu **User đã 
 
 ## 5. Đề xuất việc tiếp theo
 
-⚠️ **Đang chờ input:** user sẽ cung cấp yêu cầu chi tiết cho các màn quản lý Blazor admin (mục 3.12) ở phiên sau — đó sẽ là việc ưu tiên khi có. Nếu chưa có, làm theo thứ tự dưới đây (Flutter Documents UI):
+✅ **Cả 2 repo đã commit sạch, không còn gì dang dở chưa lưu** (xem mục 7 — commit hash cụ thể). Phiên mới có thể bắt đầu ngay từ trạng thái này.
 
-1. **Phase 5 — Documents (Flutter, đúng thứ tự roadmap):** backend đã xong + verify (mục 3.10). Cần xây: model/service `document.dart`/`document_service.dart` (theo pattern các entity khác), màn danh sách tài liệu theo Course/CourseOffering, màn upload (file picker, chỉ Lecturer/Admin/AcademicOffice thấy nút), mở/tải file về.
-2. **Endpoint list/search giảng viên + sinh viên (backend, ngắn hạn, thay placeholder ở Dashboard):**
-   - `GET /api/lecturers` — danh sách + tìm kiếm (lọc theo Khoa/Bộ môn), dùng để thay `_ComingSoonScreen` ở tile "Quản lý giảng viên".
-   - `GET /api/students` — danh sách + tìm kiếm (lọc theo AdminClass), dùng để thay `_ComingSoonScreen` ở tile "Quản lý sinh viên".
-   - Cả 2 chưa tồn tại — Module 2.3 hiện tại chỉ có endpoint tạo/xem theo ID, không có list toàn bộ.
-3. **(Frontend, làm sau nếu còn thời gian)** Nhân rộng `submit_status_dialog.dart` từ Faculty sang 6 form CRUD còn lại.
-4. **(Đợi điều kiện)** Phase 4 giờ chỉ còn việc này: test luồng quét QR + GPS thật trên điện thoại khi có máy (`attendance_session_screen.dart`/`qr_scan_screen.dart` đã build + wire xong, xem mục 3.11).
+⚠️ **Việc ưu tiên #1 — bắt buộc làm trước mọi việc khác:** user cần **click-test bằng trình duyệt thật** 6 luồng CRUD Blazor admin vừa xây ở mục 3.18 (Khoa, Lớp hành chính, Lớp học phần, Giảng viên, Sinh viên, Tạo tài khoản nhân viên). Đây là điều **`curl` không thể verify được** — mọi thao tác Tạo/Sửa/Xoá là tương tác qua circuit SignalR (click button mở modal, điền form, bấm Lưu, xem `StatusDialogHost` báo kết quả, xem bảng tự làm mới). Nếu có bug, sửa ngay trước khi làm thêm gì mới — tránh lặp lại tình huống mục 3.14 (bug chỉ lộ ra khi test tay).
+
+Sau khi xác nhận ổn, thứ tự ưu tiên tiếp theo:
+
+1. **Nhân rộng CRUD Blazor sang các mục còn lại** (Bộ môn, Ngành, Chương trình đào tạo, Môn học, Học kỳ) — đã có sẵn backend đủ CRUD (xác nhận ở mục 3.15/3.17), chỉ cần nối UI theo đúng pattern mục 3.18 (modal `.modal-overlay/.modal-card`, `StatusDialogService.ChayAsync`).
+2. **Documents theo `CourseOfferingId`** trong `Documents.razor` — hiện chỉ xem được tài liệu theo Môn học (catalog chung), chưa xem được theo từng Lớp học phần cụ thể.
+3. **Phase 5 — Documents UI bên Flutter** (backend đã xong từ lâu, xem mục 3.10 cho API contract) — độc lập với Blazor, có thể làm song song.
+4. **(Đợi điều kiện)** Phase 4 chỉ còn: test luồng quét QR + GPS thật trên điện thoại khi có máy (`attendance_session_screen.dart`/`qr_scan_screen.dart` đã build + wire xong, xem mục 3.11).
+5. Phase 6 (Notification) → Phase 7 (Analytics) → Phase 8 (AI Assistant) — chưa bắt đầu, để cuối theo đúng thứ tự phụ thuộc roadmap gốc.
 
 ### Gợi ý prompt để mở phiên mới
 
 ```
-Đọc CONTEXT.md và ROADMAP_PROJECT.md. Backend Phase 5 (Documents) đã xong và verify —
-xem mục 3.10 CONTEXT.md cho API contract. Hãy xây Flutter UI: model/service Document,
-màn danh sách + upload + tải tài liệu theo Course/CourseOffering, theo đúng pattern
-các màn academic khác trong lib/features/academic/.
-```
-
-hoặc:
-
-```
-Đọc CONTEXT.md. Hãy xây 2 endpoint GET /api/lecturers và GET /api/students
-(danh sách + tìm kiếm, có phân trang) để thay 2 màn "Quản lý giảng viên"/
-"Quản lý sinh viên" đang là placeholder ComingSoon trên Dashboard.
+Đọc CONTEXT.md (đặc biệt mục 3.18 và mục 5) và ROADMAP_PROJECT.md.
+Tôi vừa test tay 6 luồng CRUD Blazor admin (Khoa/Lớp hành chính/Lớp học phần/
+Giảng viên/Sinh viên/Tạo tài khoản nhân viên) — [ổn cả / lỗi ở chỗ X].
+Hãy [sửa lỗi / tiếp tục nhân rộng CRUD sang Bộ môn-Ngành-Chương trình-Môn học-Học kỳ
+theo đúng pattern đã dùng].
 ```
 
 ---
 
-## 6. Current Tech Setup
+## 6. Trạng thái Git (đã commit, không còn gì dang dở)
+
+| Repo | Commit mới nhất | Nội dung |
+|---|---|---|
+| Flutter (`Smart_University_Management_Platform`) | `440a6cf` | Phase 4 late/on-time attendance status + docs |
+| Backend (`SmartUniversity`, solution root) | `78bfcbe` | Phase 3/4/5 backend (Enrollment/Attendance/Documents) + toàn bộ Blazor admin portal (mục 3.12–3.18) |
+
+Cả 2 `git status` đều sạch tại thời điểm kết thúc phiên này. Backend trước đó có 1 backlog lớn chưa từng commit qua nhiều phiên (Attendance, Enrollment, Documents, Blazor scaffold) — **đã gộp vào 1 commit `78bfcbe`** vì tất cả đều liên quan và không tách nhỏ được hợp lý lúc này; phiên sau commit theo từng feature riêng nếu muốn lịch sử chi tiết hơn.
+
+---
+
+## 7. Current Tech Setup
 
 ### Backend run command (LUÔN dùng lệnh này)
 ```powershell
