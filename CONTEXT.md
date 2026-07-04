@@ -222,6 +222,8 @@ Vì `ProfileService.TaoProfileGVAsync/TaoProfileSVAsync` yêu cầu **User đã 
 
 ✅ **Cả 2 repo đã commit sạch, không còn gì dang dở chưa lưu** (xem mục 7 — commit hash cụ thể). Phiên mới có thể bắt đầu ngay từ trạng thái này.
 
+📌 **Ý tưởng mới ghi nhận (chưa build):** Bulk import Excel để tạo hàng loạt tài khoản sinh viên (MSSV + ngành/lớp từ file, mật khẩu mặc định = ngày sinh, ép đổi mật khẩu lần đầu — tái dùng `MustChangePassword` đã có sẵn). Đã ghi thành feature "PLANNED" trong `ROADMAP_PROJECT.md` Module 1.4 (Completion 0/8) và §6.10 (UNDER CONSIDERATION) trong `Smart_University_Handover_EN.md` — đọc 2 chỗ đó để lấy chi tiết thiết kế trước khi bắt tay code.
+
 ⚠️ **Việc ưu tiên #1 — bắt buộc làm trước mọi việc khác:** user cần **click-test bằng trình duyệt thật** 6 luồng CRUD Blazor admin vừa xây ở mục 3.18 (Khoa, Lớp hành chính, Lớp học phần, Giảng viên, Sinh viên, Tạo tài khoản nhân viên). Đây là điều **`curl` không thể verify được** — mọi thao tác Tạo/Sửa/Xoá là tương tác qua circuit SignalR (click button mở modal, điền form, bấm Lưu, xem `StatusDialogHost` báo kết quả, xem bảng tự làm mới). Nếu có bug, sửa ngay trước khi làm thêm gì mới — tránh lặp lại tình huống mục 3.14 (bug chỉ lộ ra khi test tay).
 
 Sau khi xác nhận ổn, thứ tự ưu tiên tiếp theo:

@@ -146,6 +146,13 @@ User → Login (Flutter): LoginCode + password
 - Two creation paths share this rule: bulk seed/import (Module 1.1, e.g. onboarding a new cohort) and one-off API provisioning (this endpoint, e.g. a late add). Same constraint either way — no path lets a user create their own login.
 - **Naming clash to be aware of:** "registration" means two unrelated things in this document — *account* registration (closed, admin-only, this section) and *course* registration (open, student self-service, §16). Do not conflate them; they have opposite access models.
 
+### 6.10 Bulk account provisioning via Excel import (UNDER CONSIDERATION)
+- **Problem:** onboarding an incoming cohort (hundreds of students per intake) one account at a time through the single-record provisioning form (§6.9) does not scale operationally.
+- **Proposed mechanism:** staff uploads a spreadsheet (MSSV/LoginCode, full name, date of birth, major/admin-class code, optional email); the system parses and validates every row (required columns, MSSV format, referenced major/admin-class exists, no duplicate LoginCode) and shows a **preview with per-row errors before committing anything** — no silent partial imports. On confirmation, each valid row goes through the *same* account-creation + student-profile-creation path already used for a single student (§6.9's `RegisterAsync`, plus `ProfileService`'s student-profile creation), just looped, with a per-row success/fail report at the end.
+- **Default password = date of birth** (fixed format, e.g. `ddMMyyyy`). This is a knowingly guessable default — it is only acceptable *because* it is paired with the existing `MustChangePassword = true` forced-change-on-first-login mechanism (§6.9). Do not reuse this default-password pattern anywhere `MustChangePassword` is not also enforced.
+- **Why "under consideration" and not "decided":** the column layout, the exact library/approach for parsing the spreadsheet, and where the endpoint lives (a dedicated API endpoint vs. calling the same services directly from the Blazor admin portal, which already has direct DI access to `IAuthService`/`ProfileService`) are not yet finalized. See `ROADMAP_PROJECT.md` Module 1.4 for the task breakdown.
+- **Relationship to existing decisions:** this is additive to §6.9, not a replacement — it is the "bulk seed/import" path already named in §6.9's third bullet, now specified concretely (Excel-driven, staff-triggered, not the DB-seed-script bootstrap of Module 1.1).
+
 ---
 
 ## 7. Organizational & Academic Structure
@@ -304,6 +311,7 @@ Full technical detail in [Section 16](#16-registration--concurrency-design-decid
 7. Fine-grained permissions (FUTURE).
 8. **[NEW] Multi-instance concurrency scale-out** (UNDER CONSIDERATION). v1 uses an in-process `Channel` queue — correct only for a single API instance. Scaling out requires a **distributed lock (Redis RedLock)** or **message broker (RabbitMQ/Azure Service Bus)**, while keeping the atomic DB check as the integrity floor. Decide before multi-instance deployment.
 9. **[NEW] Detailed waitlist policy** (UNDER CONSIDERATION). Seat-hold timeout when offered from waitlist; auto-expiry; ordering (FIFO vs. academic priority).
+10. **[NEW] Bulk account provisioning via Excel import** (UNDER CONSIDERATION) — see §6.10. Column layout and exact endpoint shape not finalized; default-password-by-birthdate mechanism only acceptable paired with the existing forced-change-on-first-login rule.
 
 ---
 

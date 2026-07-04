@@ -315,6 +315,24 @@ Completion: 6/6
 - **Knowledge to learn:** Reusing existing policies on a new endpoint; the provisioned-account pattern (temp password + forced change on first login) vs. self-signup.
 - **Dependency:** Policy-based authorization (this module, above) — already satisfied.
 
+### Feature: Bulk account provisioning via Excel import (Admin/AcademicOffice only) — PLANNED, not yet built
+
+* [ ] Choose an Excel-parsing library (e.g. ClosedXML) and add it to the backend project
+* [ ] Define the expected column layout (MSSV/LoginCode, FullName, DateOfBirth, MajorCode/AdminClassCode, Email optional) and document it
+* [ ] Parser: read rows, map to candidate accounts, validate (required columns present, MSSV format, referenced Major/AdminClass exists, no duplicate LoginCode within the file or against existing `Users`)
+* [ ] Preview step: return validated rows + per-row errors to the caller **before** committing anything (staff must review counts/errors first — no silent partial imports)
+* [ ] `POST /api/admin/students/bulk-import` (or Blazor-native equivalent calling services directly, per the admin portal's established pattern — see §6.10 of the handover) — on confirm, create each account via the same `IAuthService.RegisterAsync` + `ProfileService.TaoProfileSVAsync` pair already used by the single-student "+ Thêm sinh viên" flow (Blazor `Students.razor`), inside a loop reporting success/fail per row
+* [ ] Default password = date of birth in a fixed format (e.g. `ddMMyyyy`) — reuses the existing `MustChangePassword = true` forced-change-on-first-login mechanism already set by `RegisterAsync`, which is what makes a guessable default password acceptable here
+* [ ] Report results back per row (created / skipped-duplicate / failed-with-reason) — do not just return a bare success count
+* [ ] `[Authorize(Policy = "AccountProvisioning")]`, same rate-limit/audit posture as the single-account endpoint
+
+Completion: 0/8
+
+- **Objective:** Let staff onboard an entire incoming cohort (hundreds of students) from a spreadsheet instead of one-by-one through the "+ Thêm sinh viên" form.
+- **Expected outcome:** Uploading a validated spreadsheet creates accounts + student profiles in bulk, with a clear per-row report; no path silently creates broken/partial data.
+- **Knowledge to learn:** Bulk-operation UX (validate-then-commit, not commit-as-you-go), reusing existing single-record services inside a batch loop rather than duplicating their logic, why a guessable default password is only acceptable when paired with a forced first-login change.
+- **Dependency:** `AdminClass`/`Major` must already exist (Phase 2) for the referenced class/major to resolve; reuses `RegisterAsync` (this module) and `ProfileService.TaoProfileSVAsync` (Module 2.3) unchanged.
+
 ## Module 1.5 — Flutter Auth UX
 
 ### Feature: Login screen & secure token storage
@@ -1268,7 +1286,7 @@ Completion: 0/3
 | Phase | Total Tasks | Completed | % |
 |---|---|---|---|
 | Phase 0 — Project Foundation | 26 | 26 | 100% |
-| Phase 1 — Authentication | 57 | 57 | 100% |
+| Phase 1 — Authentication | 65 | 57 | 88% |
 | Phase 2 — Academic Structure | 68 | 43 | 63% |
 | Phase 3 — Enrollment & Timetable | 26 | 18 | 69% |
 | Phase 4 — Attendance | 32 | 31 | 97% |
@@ -1276,13 +1294,13 @@ Completion: 0/3
 | Phase 6 — Notification | 16 | 0 | 0% |
 | Phase 7 — Analytics | 14 | 0 | 0% |
 | Phase 8 — AI Assistant | 17 | 0 | 0% |
-| **Project Total** | **272** | **188** | **69%** |
+| **Project Total** | **280** | **188** | **67%** |
 
 ## Overall Progress
 
 ```
 Phase 0: 100% (26/26)
-Phase 1: 100% (57/57)
+Phase 1: 88%  (57/65)
 Phase 2: 63%  (43/68)
 Phase 3: 69%  (18/26)
 Phase 4: 97%  (31/32)
@@ -1290,7 +1308,7 @@ Phase 5: 81%  (13/16)
 Phase 6: 0%   (0/16)
 Phase 7: 0%   (0/14)
 Phase 8: 0%   (0/17)
-Project Total: 69%   (188/272)
+Project Total: 67%   (188/280)
 ```
 
 ## Milestones
@@ -1306,7 +1324,7 @@ Project Total: 69%   (188/272)
 1. When you finish a task, change `* [ ]` to `* [x]`.
 2. Update that feature's `Completion: x/n` line.
 3. When a phase's feature tasks are all done, set its row in the table and the Overall Progress block.
-4. Recompute `Project Total` as completed ÷ 272.
+4. Recompute `Project Total` as completed ÷ current grand total (280 as of this revision — recompute if tasks are added/removed).
 5. Only tick a **Definition of Done** item when its condition is genuinely true — that is the gate for moving to the next phase.
 
 ---
