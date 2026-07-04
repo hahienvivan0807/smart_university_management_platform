@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 
 import 'package:smart_university_management_platform/core/theme.dart';
+import 'package:smart_university_management_platform/features/academic/app_shell.dart';
 import 'package:smart_university_management_platform/features/auth/models/app_role.dart';
-import 'package:smart_university_management_platform/features/home/screens/workspace_screen.dart';
 
 // ============================================================================
 // ROLE PICKER SCREEN  —  post-login, shown only when requiresRoleSelection=true
@@ -26,7 +26,7 @@ class RolePickerScreen extends StatelessWidget {
 
   void _pick(BuildContext context, AppRole role) {
     Navigator.of(context).pushReplacement(
-      _fade(WorkspaceScreen(activeRole: role)),
+      _fade(AppShell(activeRole: role)),
     );
   }
 

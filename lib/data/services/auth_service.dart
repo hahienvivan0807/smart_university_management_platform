@@ -5,6 +5,7 @@ import 'package:http/http.dart' as http;
 
 import 'package:smart_university_management_platform/core/api_config.dart';
 import 'package:smart_university_management_platform/data/models/login_response.dart';
+import 'package:smart_university_management_platform/data/models/me_info.dart';
 import 'token_storage.dart';
 
 /// Outcome of a login attempt. Either [LoginResponse] data on success, or a
@@ -125,6 +126,59 @@ class AuthService {
       default:
         return LoginResult.failure(
             'Login failed (${res.statusCode}). Please try again.');
+    }
+  }
+
+  /// Lấy thông tin user đang đăng nhập — dùng cho màn Profile/Dashboard.
+  /// Dùng [authenticatedClient] khi khởi tạo service để tự gắn JWT.
+  Future<({MeInfo? data, String? error})> layThongTinCuaToi() async {
+    try {
+      final res = await _client.get(ApiConfig.me).timeout(ApiConfig.timeout);
+
+      if (res.statusCode == 200) {
+        return (
+          data: MeInfo.fromJson(jsonDecode(res.body) as Map<String, dynamic>),
+          error: null,
+        );
+      }
+      return (data: null, error: _extractError(res));
+    } catch (_) {
+      return (data: null, error: 'Không thể kết nối đến server.');
+    }
+  }
+
+  /// Tự đổi mật khẩu — POST /api/auth/change-password.
+  Future<({bool ok, String? error})> doiMatKhau({
+    required String matKhauHienTai,
+    required String matKhauMoi,
+  }) async {
+    try {
+      final res = await _client
+          .post(
+            ApiConfig.changePassword,
+            headers: const {'Content-Type': 'application/json'},
+            body: jsonEncode({
+              'currentPassword': matKhauHienTai,
+              'newPassword': matKhauMoi,
+            }),
+          )
+          .timeout(ApiConfig.timeout);
+
+      if (res.statusCode == 204) return (ok: true, error: null);
+      return (ok: false, error: _extractError(res));
+    } catch (_) {
+      return (ok: false, error: 'Không thể kết nối đến server.');
+    }
+  }
+
+  String _extractError(http.Response res) {
+    try {
+      final body = jsonDecode(res.body) as Map<String, dynamic>;
+      return body['message'] as String? ??
+          body['title'] as String? ??
+          'Lỗi ${res.statusCode}';
+    } catch (_) {
+      return 'Lỗi ${res.statusCode}';
     }
   }
 

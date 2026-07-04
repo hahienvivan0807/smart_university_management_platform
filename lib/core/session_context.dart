@@ -1,6 +1,8 @@
 import 'package:flutter/foundation.dart';
 
 import 'package:smart_university_management_platform/data/models/login_response.dart';
+import 'package:smart_university_management_platform/data/models/me_info.dart';
+import 'package:smart_university_management_platform/data/services/auth_service.dart';
 import 'package:smart_university_management_platform/features/auth/models/app_role.dart';
 
 // ============================================================================
@@ -33,6 +35,7 @@ class SessionContext extends ChangeNotifier {
   List<String> _roles     = [];      // roles thật từ JWT, ví dụ: ["Student"]
   AppRole?     _activeRole;          // role đang dùng trong session này
   String?      _loginCode;           // lưu để hiển thị UI (KHÔNG dùng cho auth)
+  MeInfo?      _me;                  // thông tin chi tiết (tên, email...) cho màn Profile
 
   // ── Getters — đọc state từ bên ngoài ──────────────────────────────────────
 
@@ -46,6 +49,10 @@ class SessionContext extends ChangeNotifier {
 
   /// Tên đăng nhập — chỉ để hiển thị UI, không có giá trị bảo mật.
   String? get loginCode => _loginCode;
+
+  /// Thông tin chi tiết user (tên, email...) — null cho tới khi
+  /// [taiThongTinCuaToi] được gọi thành công lần đầu (thường ở AppShell).
+  MeInfo? get me => _me;
 
   /// true = đã đăng nhập (có ít nhất 1 role).
   bool get isLoggedIn => _roles.isNotEmpty;
@@ -93,6 +100,19 @@ class SessionContext extends ChangeNotifier {
     _roles      = [];
     _activeRole = null;
     _loginCode  = null;
+    _me         = null;
     notifyListeners();
+  }
+
+  /// Gọi 1 lần sau khi vào AppShell — tải FullName/Email cho màn Profile.
+  /// Nhận [dichVu] từ nơi gọi (thay vì tự tạo) để tránh session_context.dart
+  /// (nằm ở core/) phải import main.dart (import ngược — main.dart đang tạo
+  /// biến `session` từ chính file này).
+  Future<void> taiThongTinCuaToi(AuthService dichVu) async {
+    final ketQua = await dichVu.layThongTinCuaToi();
+    if (ketQua.data != null) {
+      _me = ketQua.data;
+      notifyListeners();
+    }
   }
 }

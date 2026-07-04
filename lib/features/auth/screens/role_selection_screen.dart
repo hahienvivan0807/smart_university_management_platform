@@ -210,7 +210,7 @@ class _RoleCardState extends State<_RoleCard> {
             boxShadow: [
               BoxShadow(
                 color: Colors.black
-                    .withOpacity(context.isDark ? 0.0 : (_hover ? 0.05 : 0.02)),
+                    .withValues(alpha: context.isDark ? 0.0 : (_hover ? 0.05 : 0.02)),
                 blurRadius: _hover ? 18 : 10,
                 offset: const Offset(0, 6),
               ),
@@ -325,8 +325,8 @@ class _Logo extends StatelessWidget {
 PageRouteBuilder _fade(Widget page) => PageRouteBuilder(
   transitionDuration: const Duration(milliseconds: 340),
   reverseTransitionDuration: const Duration(milliseconds: 260),
-  pageBuilder: (_, __, ___) => page,
-  transitionsBuilder: (_, animation, __, child) {
+  pageBuilder: (_, _, _) => page,
+  transitionsBuilder: (_, animation, _, child) {
     // New page slides up from slightly below while fading in.
     final slide = Tween<Offset>(
       begin: const Offset(0, 0.06),

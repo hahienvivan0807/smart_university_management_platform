@@ -2,10 +2,11 @@ import 'package:flutter/material.dart';
 
 import 'package:smart_university_management_platform/core/theme.dart';
 import 'package:smart_university_management_platform/data/services/token_storage.dart';
+import 'package:smart_university_management_platform/features/academic/app_shell.dart';
 import 'package:smart_university_management_platform/features/auth/models/app_role.dart';
 import 'package:smart_university_management_platform/features/auth/screens/role_picker_screen.dart';
 import 'package:smart_university_management_platform/features/auth/screens/role_selection_screen.dart';
-import 'package:smart_university_management_platform/features/home/screens/workspace_screen.dart';
+import 'package:smart_university_management_platform/main.dart';
 
 // ============================================================================
 // SPLASH SCREEN  —  brand-first launch
@@ -86,11 +87,12 @@ class _SplashScreenState extends State<SplashScreen>
       return;
     }
 
-    // Bước 8: route theo số lượng role
+    // Bước 8: khôi phục session từ storage
+    session.restore(roles);
+
+    // Bước 9: route theo số lượng role
     final Widget destination = roles.length == 1
-        // 1 role → vào thẳng workspace, không cần chọn
-        ? WorkspaceScreen(activeRole: AppRole.fromBackendId(roles.first))
-        // Nhiều role → hiện màn chọn role
+        ? AppShell(activeRole: AppRole.fromBackendId(roles.first))
         : RolePickerScreen(roles: roles);
 
     Navigator.of(context).pushReplacement(_fade(destination));
@@ -159,7 +161,7 @@ class _Logo extends StatelessWidget {
         borderRadius: BorderRadius.circular(size * 0.30),
         boxShadow: [
           BoxShadow(
-            color: AppColors.accent.withOpacity(0.28),
+            color: AppColors.accent.withValues(alpha: 0.28),
             blurRadius: 28,
             offset: const Offset(0, 12),
           ),
@@ -174,7 +176,7 @@ class _Logo extends StatelessWidget {
 
 PageRouteBuilder _fade(Widget page) => PageRouteBuilder(
       transitionDuration: const Duration(milliseconds: 320),
-      pageBuilder: (_, __, ___) => page,
-      transitionsBuilder: (_, a, __, child) =>
+      pageBuilder: (_, _, _) => page,
+      transitionsBuilder: (_, a, _, child) =>
           FadeTransition(opacity: a, child: child),
     );

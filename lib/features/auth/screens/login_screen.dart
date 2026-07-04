@@ -3,8 +3,9 @@ import 'package:smart_university_management_platform/features/auth/models/app_ro
 import 'package:smart_university_management_platform/core/theme.dart';
 import 'package:smart_university_management_platform/data/models/login_response.dart';
 import 'package:smart_university_management_platform/data/services/auth_service.dart';
+import 'package:smart_university_management_platform/features/academic/app_shell.dart';
 import 'package:smart_university_management_platform/features/auth/screens/role_picker_screen.dart';
-import 'package:smart_university_management_platform/features/home/screens/workspace_screen.dart';
+import 'package:smart_university_management_platform/main.dart';
 
 
 // ============================================================================
@@ -76,9 +77,11 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 
   void _routeAfterLogin(LoginResponse data) {
+    session.login(data, loginCode: _loginCodeCtrl.text);
+
     final Widget next = data.requiresRoleSelection
-        ? RolePickerScreen(roles: data.roles)   // chỉ truyền List<String> roles
-        : WorkspaceScreen(activeRole: AppRole.fromBackendId(data.roles.first));
+        ? RolePickerScreen(roles: data.roles)
+        : AppShell(activeRole: AppRole.fromBackendId(data.roles.first));
 
     Navigator.of(context).pushReplacement(_fade(next));
   }
@@ -124,7 +127,7 @@ class _LoginScreenState extends State<LoginScreen> {
                       boxShadow: [
                         BoxShadow(
                           color: Colors.black
-                              .withOpacity(context.isDark ? 0.0 : 0.03),
+                              .withValues(alpha: context.isDark ? 0.0 : 0.03),
                           blurRadius: 24,
                           offset: const Offset(0, 10),
                         ),
@@ -320,7 +323,7 @@ class _Field extends StatelessWidget {
                 ),
               ),
             ),
-            if (trailing != null) trailing!,
+            ?trailing,
           ],
         ),
       ),
@@ -413,9 +416,9 @@ class _ErrorBanner extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(AppSpacing.sm + 2),
       decoration: BoxDecoration(
-        color: AppColors.red.withOpacity(context.isDark ? 0.14 : 0.08),
+        color: AppColors.red.withValues(alpha: context.isDark ? 0.14 : 0.08),
         borderRadius: BorderRadius.circular(AppRadius.md),
-        border: Border.all(color: AppColors.red.withOpacity(0.35)),
+        border: Border.all(color: AppColors.red.withValues(alpha: 0.35)),
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -539,8 +542,8 @@ class _AccountNotice extends StatelessWidget {
 
 PageRouteBuilder _fade(Widget page) => PageRouteBuilder(
       transitionDuration: const Duration(milliseconds: 260),
-      pageBuilder: (_, __, ___) => page,
-      transitionsBuilder: (_, a, __, child) =>
+      pageBuilder: (_, _, _) => page,
+      transitionsBuilder: (_, a, _, child) =>
           FadeTransition(opacity: a, child: child),
     );
 //-----------------------------------------------------------------------------
