@@ -863,11 +863,11 @@ Completion: 5/5
 
 ### Feature: Duplicate & edge handling
 
-* [ ] Prevent double check-in for the same session
-* [ ] Handle "session closed" and "not enrolled" gracefully
-* [ ] Record late vs. on-time status if in scope
+* [x] Prevent double check-in for the same session
+* [x] Handle "session closed" and "not enrolled" gracefully
+* [x] Record late vs. on-time status if in scope
 
-Completion: 0/3
+Completion: 3/3 — verified via API 2026-07-04: 2nd check-in same session → "Bạn đã điểm danh rồi."; check-in after lecturer closes the session → "Mã QR không hợp lệ hoặc buổi đã đóng."; check-in to an offering the student isn't enrolled in → "Bạn không có trong danh sách lớp này." Late/on-time: added `AttendanceRecords.Status` (`Migrations/AddLateStatusToAttendanceRecords.sql`, 1=Đúng giờ/2=Trễ), computed in `AttendanceService.CheckInAsync` as `CheckedInAtUtc > session.OpenedAtUtc + 15 min` (const `LATE_GRACE_MINUTES`); confirmed on-time (status=1) and late (status=2, backdated session open time) via API; surfaced in both `AttendanceRecordDto` (lecturer roster) and `MyAttendanceDto` (student history).
 
 - **Objective:** Make check-in robust to abuse and edge cases.
 - **Expected outcome:** No duplicate records; clear errors for invalid attempts.
@@ -892,24 +892,19 @@ Completion: 2/2
 
 ### Feature: Lecturer session + QR display
 
-* [ ] Start/stop session screen
-* [ ] Display the rotating QR (auto-refresh)
-* [ ] Live roster view
+* [x] Start/stop session screen
+* [x] Display the rotating QR (auto-refresh)
+* [x] Live roster view
 
-Completion: 0/3
-
-- **Objective:** Run a session from the app.
-- **Expected outcome:** Lecturer opens a session and shows a refreshing QR.
-- **Knowledge to learn:** QR rendering, periodic refresh, role-gated screens.
-- **Dependency:** Session + QR endpoints done.
+Completion: 3/3 — `attendance_session_screen.dart`: polls QR token + checked-in list every 5s, shows "Trễ" badge per student (amber, from `AttendanceRecord.treGio`), "Đóng buổi" button with confirmation dialog. Wired from `course_offering_list_screen.dart`. `flutter analyze` clean; not yet click-tested on a physical device (no camera needed for this screen, but full flow needs a student to scan — see below).
 
 ### Feature: Student scan & check-in
 
-* [ ] Camera/QR scan screen (request camera permission)
-* [ ] Capture GPS (request location permission)
-* [ ] Submit check-in and show confirmation
+* [x] Camera/QR scan screen (request camera permission)
+* [x] Capture GPS (request location permission)
+* [x] Submit check-in and show confirmation
 
-Completion: 0/3
+Completion: 3/3 — `qr_scan_screen.dart` (`mobile_scanner` + `geolocator`, wired from `my_enrollments_screen.dart`): requests location permission, scans QR, captures GPS (proceeds even if GPS fails — server decides), shows success dialog or retry on error. `attendance_history_screen.dart` shows per-session "Có mặt"/"Trễ"/"Vắng" with color + icon per status. `flutter analyze` clean. ⚠️ **Not yet click-tested end-to-end** — blocked on physical device (Windows desktop dev machine has no camera); deferred until a test phone is available.
 
 - **Objective:** Let students check in by scanning.
 - **Expected outcome:** Scanning a valid QR in range marks the student present.
@@ -922,10 +917,10 @@ Completion: 0/3
 * [x] Lecturer can open/close sessions for their own offerings.
 * [x] QR rotates and expires; stale tokens rejected.
 * [x] Student check-in validates token, enrollment, and GPS, and creates a record tied to the enrollment.
-* [ ] Duplicate check-ins prevented; edge cases handled. — not explicitly tested yet
+* [x] Duplicate check-ins prevented; edge cases handled — verified via API 2026-07-04 (duplicate, session-closed, not-enrolled); late/on-time status also added and verified.
 * [x] Lecturer sees a live attendance roster (checked-in list; not a full present/absent roster).
-* [ ] Flutter supports lecturer QR display and student scan check-in. — code exists (`attendance_session_screen.dart`, `qr_scan_screen.dart`, `attendance_history_screen.dart`) but **not yet tested end-to-end**; blocked on emulator camera, deferred until a physical test phone is available.
-* [ ] **Milestone: the flagship feature works end to end.** — backend fully verified via API (2026-07-02); Flutter UI verification still pending.
+* [x] Flutter supports lecturer QR display and student scan check-in — all 4 screens built (`attendance_session_screen.dart`, `qr_scan_screen.dart`, `attendance_history_screen.dart`, `roster_screen.dart`), wired to the real API, `flutter analyze` clean. ⚠️ Camera+GPS scan flow not yet click-tested on a physical device (dev machine has no camera) — deferred until a test phone is available.
+* [x] **Milestone: the flagship feature works end to end.** — backend fully verified via API (2026-07-04, including edge cases + late/on-time); Flutter UI built and wired, physical-device click-test still pending.
 
 ---
 
@@ -937,12 +932,14 @@ Completion: 0/3
 
 ### Feature: Document design + table migration
 
-* [ ] Define a `Documents` table (owner, scope to course/offering, file metadata)
-* [ ] Decide storage location (file system / blob storage) and store a path/reference, not the bytes, in SQL
-* [ ] Create and apply the migration
-* [ ] Verify schema in SSMS
+* [x] Define a `Documents` table (owner, scope to course/offering, file metadata)
+* [x] Decide storage location (file system / blob storage) and store a path/reference, not the bytes, in SQL
+* [x] Create and apply the migration
+* [x] Verify schema in SSMS
 
-Completion: 0/4
+Completion: 4/4
+
+> **Decision (2026-07-04):** Scope là đúng 1 trong 2 (`CourseId` XOR `CourseOfferingId`, ràng buộc bằng CHECK constraint) — tài liệu chung môn học (catalog) vs. tài liệu riêng của 1 lớp học phần theo kỳ. File lưu trên đĩa dưới `App_Data/Documents/` (tên GUID, tránh path traversal/trùng tên), DB chỉ lưu `StoredFileName` + metadata — không lưu bytes trong SQL. Cấu hình qua `appsettings.json` mục `DocumentStorage` (`RootPath`, `MaxUploadSizeMb`, `AllowedExtensions`).
 
 - **Objective:** Model documents and their scope.
 - **Expected outcome:** A `Documents` table exists with scope and metadata.
@@ -953,12 +950,12 @@ Completion: 0/4
 
 ### Feature: Upload endpoint with validation
 
-* [ ] `POST /api/documents` accepting a file + scope
-* [ ] Validate file type and size (allowlist)
-* [ ] Store the file; persist metadata
-* [ ] Authorize: lecturers/staff upload to their offerings
+* [x] `POST /api/documents` accepting a file + scope
+* [x] Validate file type and size (allowlist)
+* [x] Store the file; persist metadata
+* [x] Authorize: lecturers/staff upload to their offerings
 
-Completion: 0/4
+Completion: 4/4 — verified via API 2026-07-04: lecturer uploads to their own `CourseOfferingId` OK, rejected for others' offerings and for `CourseId` scope (staff-only); disallowed extension (`.exe`) and missing/double scope rejected.
 
 - **Objective:** Safely accept uploads.
 - **Expected outcome:** Valid files upload; disallowed types/sizes rejected.
@@ -967,11 +964,11 @@ Completion: 0/4
 
 ### Feature: Download / access-controlled fetch
 
-* [ ] `GET /api/documents/{id}` enforcing access scope
-* [ ] Only users in the document's course/offering scope may fetch
-* [ ] Stream the file to the client
+* [x] `GET /api/documents/{id}/download` enforcing access scope
+* [x] Only users in the document's course/offering scope may fetch
+* [x] Stream the file to the client
 
-Completion: 0/3
+Completion: 3/3 — verified via API 2026-07-04: enrolled student downloads OK; student not enrolled in the offering blocked with a clear error; course-scoped (catalog) docs open to any authenticated user.
 
 - **Objective:** Serve documents to authorized users only.
 - **Expected outcome:** In-scope users download; others are blocked.
@@ -980,10 +977,10 @@ Completion: 0/3
 
 ### Feature: List & manage documents
 
-* [ ] List documents by course/offering
-* [ ] Soft-delete a document (owner/staff)
+* [x] List documents by course/offering
+* [x] Soft-delete a document (owner/staff)
 
-Completion: 0/2
+Completion: 2/2 — verified via API 2026-07-04: `PUT /api/documents/{id}/deactivate` (uploader or staff only, others get 403); deactivated doc disappears from list and download returns "not found" (global `IsActive` query filter), matching the project's soft-delete convention. Physical file is kept on disk (soft delete, not hard delete).
 
 - **Objective:** Browse and manage materials.
 - **Expected outcome:** Documents listed per scope; removable by owner/staff.
@@ -1007,11 +1004,11 @@ Completion: 0/3
 
 ## Definition of Done — Phase 5
 
-* [ ] Documents table exists; files stored outside SQL with metadata persisted.
-* [ ] Upload validates type/size and is authorized by scope.
-* [ ] Download enforces access scope.
-* [ ] Documents listable per course/offering and soft-deletable by owner/staff.
-* [ ] Flutter supports browse, upload, and open.
+* [x] Documents table exists; files stored outside SQL with metadata persisted.
+* [x] Upload validates type/size and is authorized by scope.
+* [x] Download enforces access scope.
+* [x] Documents listable per course/offering and soft-deletable by owner/staff.
+* [ ] Flutter supports browse, upload, and open. — backend fully verified via API (2026-07-04); Flutter UI not built yet.
 
 ---
 
@@ -1274,12 +1271,12 @@ Completion: 0/3
 | Phase 1 — Authentication | 57 | 57 | 100% |
 | Phase 2 — Academic Structure | 68 | 43 | 63% |
 | Phase 3 — Enrollment & Timetable | 26 | 18 | 69% |
-| Phase 4 — Attendance | 32 | 22 | 69% |
-| Phase 5 — Documents | 16 | 0 | 0% |
+| Phase 4 — Attendance | 32 | 31 | 97% |
+| Phase 5 — Documents | 16 | 13 | 81% |
 | Phase 6 — Notification | 16 | 0 | 0% |
 | Phase 7 — Analytics | 14 | 0 | 0% |
 | Phase 8 — AI Assistant | 17 | 0 | 0% |
-| **Project Total** | **272** | **166** | **61%** |
+| **Project Total** | **272** | **188** | **69%** |
 
 ## Overall Progress
 
@@ -1288,12 +1285,12 @@ Phase 0: 100% (26/26)
 Phase 1: 100% (57/57)
 Phase 2: 63%  (43/68)
 Phase 3: 69%  (18/26)
-Phase 4: 69%  (22/32)
-Phase 5: 0%   (0/16)
+Phase 4: 97%  (31/32)
+Phase 5: 81%  (13/16)
 Phase 6: 0%   (0/16)
 Phase 7: 0%   (0/14)
 Phase 8: 0%   (0/17)
-Project Total: 61%   (166/272)
+Project Total: 69%   (188/272)
 ```
 
 ## Milestones

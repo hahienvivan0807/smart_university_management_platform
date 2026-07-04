@@ -194,6 +194,31 @@ class _AttendanceSessionScreenState extends State<AttendanceSessionScreen> {
                                         .textTheme
                                         .bodyMedium),
                               ),
+                              if (sv.treGio)
+                                Padding(
+                                  padding: const EdgeInsets.only(
+                                      right: AppSpacing.xs),
+                                  child: Container(
+                                    padding: const EdgeInsets.symmetric(
+                                        horizontal: 6, vertical: 2),
+                                    decoration: BoxDecoration(
+                                      color: AppColors.amber.withValues(
+                                          alpha: 0.15),
+                                      borderRadius:
+                                          BorderRadius.circular(AppRadius.sm),
+                                    ),
+                                    child: Text(
+                                      'Trễ',
+                                      style: Theme.of(context)
+                                          .textTheme
+                                          .bodyMedium
+                                          ?.copyWith(
+                                              color: AppColors.amber,
+                                              fontSize: 11,
+                                              fontWeight: FontWeight.w600),
+                                    ),
+                                  ),
+                                ),
                               Text(
                                 sv.loginCode,
                                 style: Theme.of(context)

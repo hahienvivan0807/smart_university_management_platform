@@ -216,12 +216,14 @@ class _BuoiTile extends StatelessWidget {
                 const SizedBox(height: 2),
                 Text(
                   buoi.daMat
-                      ? 'Có mặt lúc ${_formatGio(buoi.checkedInAtUtc!.toLocal())}'
+                      ? '${buoi.treGio ? "Trễ" : "Có mặt"} lúc ${_formatGio(buoi.checkedInAtUtc!.toLocal())}'
                       : 'Vắng · Buổi $gio',
                   style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                        color: buoi.daMat
-                            ? const Color(0xFF16A34A)
-                            : context.muted,
+                        color: !buoi.daMat
+                            ? context.muted
+                            : buoi.treGio
+                                ? AppColors.amber
+                                : const Color(0xFF16A34A),
                         fontSize: 12.5,
                       ),
                 ),
@@ -229,10 +231,16 @@ class _BuoiTile extends StatelessWidget {
             ),
           ),
           Icon(
-            buoi.daMat
-                ? Icons.check_circle_rounded
-                : Icons.cancel_rounded,
-            color: buoi.daMat ? const Color(0xFF16A34A) : AppColors.red,
+            !buoi.daMat
+                ? Icons.cancel_rounded
+                : buoi.treGio
+                    ? Icons.schedule_rounded
+                    : Icons.check_circle_rounded,
+            color: !buoi.daMat
+                ? AppColors.red
+                : buoi.treGio
+                    ? AppColors.amber
+                    : const Color(0xFF16A34A),
             size: 22,
           ),
         ],

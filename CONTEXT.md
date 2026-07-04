@@ -6,12 +6,13 @@
 
 ## 1. Project Overview
 
-**Flutter frontend** — `c:\Users\littl\StudioProjects\Smart_University_Management_Platform`
+**Flutter frontend** (Student/Lecturer, mobile+desktop) — `c:\Users\littl\StudioProjects\Smart_University_Management_Platform`
 **ASP.NET Core backend** — `C:\Users\littl\source\repos\SmartUniversity\SmartUniversity`
+**Blazor Server admin** (mới, Admin/AcademicOffice, chạy chung project với backend) — cùng thư mục backend ở trên, xem mục 3.12.
 
 Hệ thống đăng ký học phần theo tín chỉ (sinh viên tự đăng ký vào các `CourseOffering` do staff tạo sẵn).
 
-**Tiến độ tổng:** xem `ROADMAP_PROJECT.md` — hiện **61% (166/272 task)**. Phase 0-1 100%, Phase 2 63%, Phase 3 69%, Phase 4 69%, Phase 5-8 chưa bắt đầu (0%).
+**Tiến độ tổng:** xem `ROADMAP_PROJECT.md` — hiện **69% (188/272 task)**. Phase 0-1 100%, Phase 2 63%, Phase 3 69%, Phase 4 97% (gần như xong, chỉ thiếu click-test tay trên điện thoại thật), Phase 5 81% (backend xong, Flutter UI chưa), Phase 6-8 chưa bắt đầu (0%).
 
 ---
 
@@ -23,8 +24,8 @@ Hệ thống đăng ký học phần theo tín chỉ (sinh viên tự đăng ký
 | Phase 1 — Auth | ✅ 100% |
 | Phase 2 — Academic Structure | 🟡 63% — CRUD backend đủ 7 entity, Flutter admin UI đã xây xong hết (xem mục 3) |
 | Phase 3 — Enrollment & Timetable | 🟡 69% — đăng ký/hủy môn + Timetable đã xong; còn thiếu Lecturer timetable (backend chỉ cho Student), import-based module 3.1 đã lỗi thời (bỏ qua, không làm theo) |
-| Phase 4 — Attendance | 🟡 69% backend đã verify qua API đầy đủ; **Flutter UI (quét QR) CHƯA test tay** — đợi có điện thoại thật |
-| Phase 5 — Documents | ⬜ 0% — **chưa bắt đầu, nên làm tiếp theo** |
+| Phase 4 — Attendance | 🟢 97% — backend + edge case (trùng/đóng lớp/không enroll) + trễ giờ đã verify qua API; 4 màn Flutter đã xây + `flutter analyze` sạch; **CHƯA test tay** trên điện thoại thật (máy dev không có camera) |
+| Phase 5 — Documents | 🟡 81% — **backend xong + verify qua API**; Flutter UI (browse/upload/download) **chưa bắt đầu, nên làm tiếp theo** |
 | Phase 6 — Notification | ⬜ 0% |
 | Phase 7 — Analytics | ⬜ 0% |
 | Phase 8 — AI Assistant | ⬜ 0% — cố tình để cuối, cần đọc dữ liệu từ Phase 5-7 |
@@ -77,6 +78,136 @@ File mới `lib/features/academic/screens/widgets/submit_status_dialog.dart` —
 - Đã nối vào **`faculty_form_screen.dart`** (kèm thêm field `isConflict` vào `FacultyService.taoMoi/capNhat` để phân biệt lỗi trùng vs lỗi khác).
 - ⚠️ **CHƯA nối vào 6 form còn lại** (Major, Program, Course, AcademicTerm, AdminClass, CourseOffering) — việc lặp lại cơ học, làm sau nếu duyệt pattern ở Faculty ổn.
 
+### 3.10 Backend — Phase 5 Documents (mới xây, verify qua API PASS toàn bộ 2026-07-04)
+- Bảng `Documents` (`Migrations/AddDocumentsTable.sql`, đã chạy) — scope đúng 1 trong 2 (`CourseId` XOR `CourseOfferingId`, CHECK constraint `CK_Documents_ExactlyOneScope`): tài liệu chung môn học (catalog) vs. tài liệu riêng 1 lớp học phần theo kỳ.
+- File lưu trên đĩa `App_Data/Documents/` (tên GUID, tránh trùng/path traversal), DB chỉ lưu `StoredFileName` + metadata. Cấu hình `appsettings.json` mục `DocumentStorage` (`RootPath`, `MaxUploadSizeMb=20`, `AllowedExtensions`).
+- `DocumentService.cs` + `DocumentsController.cs` (`Application/Features/Academic/`, `Controllers/Academic/`) — theo đúng pattern Controller → Service → DbContext có sẵn:
+  - `POST /api/documents` (multipart) — Lecturer chỉ upload vào `CourseOfferingId` mình phụ trách; Admin/AcademicOffice mới được upload vào `CourseId` (tài liệu chung) hoặc bất kỳ offering nào.
+  - `GET /api/documents?courseId=&courseOfferingId=` — doc theo `CourseOfferingId` chỉ SV đã enroll (Status=1)/GV phụ trách/staff xem được; doc theo `CourseId` ai đăng nhập cũng xem được.
+  - `GET /api/documents/{id}/download` — stream file, áp cùng rule quyền như list.
+  - `PUT /api/documents/{id}/deactivate` — soft-delete (`IsActive=false`, giữ nguyên file vật lý), chỉ người upload hoặc staff.
+- Đã test qua `curl` thật (không phải giả lập): upload lecturer→offering đúng lớp OK, sai lớp/role Student bị chặn; upload CourseId chỉ staff; đuôi file `.exe` bị từ chối; thiếu/thừa scope bị từ chối; SV enrolled xem+tải được, SV không enroll bị chặn với thông báo rõ; sau deactivate thì list/download đều "không tìm thấy" (do global query filter `IsActive`) nhưng file vẫn còn trên đĩa.
+- ⚠️ **Flutter UI cho Documents CHƯA làm** (list/upload/download screens) — xem mục 5.
+
+### 3.11 Hoàn thành nốt Phase 4 — edge case + trễ giờ + xác nhận Flutter UI (2026-07-04)
+- **Edge case check-in** (Module 4.2): review code cũ phát hiện `AttendanceService.CheckInAsync` **đã** chặn trùng ("Bạn đã điểm danh rồi."), buổi đã đóng ("Mã QR không hợp lệ hoặc buổi đã đóng."), không enroll ("Bạn không có trong danh sách lớp này.") từ trước — chỉ chưa được test/ghi nhận. Đã verify lại cả 3 case qua `curl` thật, PASS.
+- **Late/on-time status (mới xây):** thêm cột `AttendanceRecords.Status` (`Migrations/AddLateStatusToAttendanceRecords.sql`, 1=Đúng giờ/2=Trễ, default 1). Ngưỡng trễ = check-in sau khi buổi mở quá 15 phút (`const LATE_GRACE_MINUTES = 15` trong `AttendanceService.cs`, cùng kiểu với `TOKEN_DURATION_SECONDS` có sẵn — không thêm config mới). Trả về trong cả `AttendanceRecordDto` (roster GV) và `MyAttendanceDto` (lịch sử SV, nullable vì có thể chưa điểm danh). Test bằng cách backdate `OpenedAtUtc` qua SQL trực tiếp để giả lập trễ — xác nhận `status=2`.
+- **Flutter:** `AttendanceRecord`/`MyAttendanceItem` model thêm field `status` + getter `treGio`. `attendance_session_screen.dart` hiện badge cam "Trễ" cạnh tên SV trong danh sách check-in. `attendance_history_screen.dart` đổi text/màu/icon theo 3 trạng thái Có mặt (xanh) / Trễ (cam) / Vắng (đỏ). `flutter analyze` sạch.
+- **Xác nhận 4 màn Flutter Attendance đã tồn tại từ trước** (`attendance_session_screen.dart`, `qr_scan_screen.dart`, `attendance_history_screen.dart`, `roster_screen.dart`) — roadmap ghi 0/3 là **stale**, thực ra đã build + wire đầy đủ (dùng `qr_flutter`, `mobile_scanner`, `geolocator` — cả 3 package đã khai báo trong `pubspec.yaml`). Chỉ chưa click-test được camera+GPS thật vì máy dev không có camera.
+- Phase 4 giờ **97% (31/32)** — chỉ còn "Note future AttendancePolicies" (Module 4.0, cố tình để ngoài scope v1) và click-test tay trên điện thoại thật.
+
+### 3.12 Blazor Server admin — mới scaffold (2026-07-04), CHƯA có màn quản lý cụ thể
+Quyết định: phần "quản trị" (dành cho Admin/AcademicOffice) sẽ phát triển bằng **Blazor Server**, chạy **chung project** với backend (`SmartUniversity.csproj`) — không tách project riêng — để gọi thẳng `Application/Features/*Service` qua DI (bỏ qua HTTP), tái dùng 100% DTO/Service/policy đã có. Đây chỉ là **khung sườn (scaffold)**: đăng nhập + 1 trang chào mừng, xác nhận pipeline chạy đúng. **Chưa có màn quản lý cụ thể nào** — user sẽ cung cấp yêu cầu chi tiết ở phiên sau.
+
+**Vấn đề kỹ thuật quan trọng đã giải quyết — auth hỗn hợp JWT + Cookie trong cùng 1 app:**
+- Blazor Server giữ kết nối SignalR liên tục nên không hợp JWT bearer (trình duyệt không tự gắn header Authorization) → dùng **cookie scheme riêng** tên `"AdminCookie"` chỉ cho path `/admin/**`.
+- ⚠️ **Blazor Razor component KHÔNG cho phép chỉ định `AuthenticationSchemes` trong `@attribute [Authorize(...)]`** (ném `NotSupportedException` lúc runtime, không phải lúc build — chỉ phát hiện khi chạy thử) — đây là giới hạn của `AuthorizeRouteView`/`AuthorizeViewCore`, khác hẳn với Controller MVC.
+- **Giải pháp:** dùng **policy scheme** (`AddPolicyScheme`) làm scheme mặc định (`DefaultScheme = "MultiAuth"`), tự chọn `"AdminCookie"` hay JWT (`"Bearer"`) dựa theo `context.Request.Path.StartsWithSegments("/admin")`. Nhờ vậy `HttpContext.User` được điền đúng scheme **trước khi** Blazor's `[Authorize(Policy=...)]` chạy (không cần chỉ định scheme ở component) — còn mọi Controller API hiện có **không phải sửa gì** (`[Authorize]`/`[Authorize(Roles=...)]` cũ vẫn chạy y hệt qua JWT).
+- Đã verify qua `curl` thật: JWT API vẫn hoạt động y hệt (không bị ảnh hưởng); `/admin` chưa đăng nhập → redirect `/admin/login`; đăng nhập đúng role (Admin) → cookie hợp lệ, vào được `/admin`, hiện tên thật; sai mật khẩu / role không phải Admin-AcademicOffice → bị chặn ngay ở bước login; đăng xuất → cookie mất hiệu lực, `/admin` redirect lại login.
+
+**Cấu trúc file đã tạo (trong `SmartUniversity.csproj`, KHÔNG phải project mới):**
+- `Program.cs` — thêm `AddPolicyScheme("MultiAuth",...)`, `.AddCookie("AdminCookie",...)`, `AddCascadingAuthenticationState()`, `AddRazorComponents().AddInteractiveServerComponents()`, `UseStaticFiles()`, `UseAntiforgery()`, `MapRazorComponents<App>().AddInteractiveServerRenderMode()`.
+- `Controllers/Admin/AdminAuthController.cs` — `POST /admin/login-submit` (⚠️ route khác `/admin/login` — trùng route với trang Blazor Login gây `AmbiguousMatchException`), `POST /admin/logout`. Check role Admin/AcademicOffice ngay tại đây (không dựa vào policy phía sau).
+- `Components/App.razor`, `Routes.razor`, `RedirectToLogin.razor`, `_Imports.razor`
+- `Components/Layout/MainLayout.razor` (header + nút đăng xuất), `LoginLayout.razor` (layout riêng cho trang login, không có header)
+- `Components/Pages/Login.razor` (route `/admin/login`, form tĩnh post tới `/admin/login-submit`), `Home.razor` (route `/admin`, `@attribute [Authorize(Policy = "AccountProvisioning")]` — policy có sẵn từ trước, không tạo mới)
+- `wwwroot/css/site.css` — CSS thuần tối giản, chưa dùng thư viện UI nào (Bootstrap/MudBlazor...) — để ngỏ cho yêu cầu UI cụ thể sau.
+- Policy `"AccountProvisioning"` (RequireRole Admin/AcademicOffice) đã có sẵn từ Module 1.4, tái dùng luôn cho gate trang `/admin`.
+
+### 3.13 Blazor admin — Dashboard UI thật (2026-07-04, cùng phiên với 3.12)
+User yêu cầu thiết kế UI/UX kế thừa tinh thần Flutter (`ARCHITECTURE.md`/`theme.dart`) cho trang Dashboard. Đã thay khung sườn "chào mừng" đơn giản ở 3.12 bằng giao diện đầy đủ:
+
+- **Design tokens** (`wwwroot/css/tokens.css`) — chuyển thẳng 1-1 từ `AppColors`/`AppRadius`/`AppSpacing` trong `lib/core/theme.dart` sang CSS variables (`--accent: #5B5BD6`, `--canvas`, `--panel`, `--border`, `--text`, `--muted`, `--faint`, `--clr-blue/purple/teal/amber`, `--radius-sm..xl`, `--space-xs..xxl`), có `@media (prefers-color-scheme: dark)` override y hệt cặp light/dark của Flutter. `--shadow-soft` chỉ có ở light mode (Flutter cũng chỉ đổ bóng ở light mode).
+- **Layout Sidebar + Topbar** (`Components/Layout/MainLayout.razor` viết lại + `NavMenu.razor` mới): sidebar trái 264px cố định, nhóm mục theo 3 cây của roadmap (Cơ cấu tổ chức / Đào tạo / Người dùng / Khác — Khoa, Bộ môn, Ngành, Chương trình đào tạo, Môn học, Học kỳ, Lớp hành chính, Lớp học phần, Giảng viên, Sinh viên, Tài liệu); topbar có avatar chữ cái đầu + tên + vai trò (đọc từ Claims) + nút đăng xuất. Các mục sidebar **chưa có trang thật** → trỏ tới `Components/Pages/ComingSoon.razor` (route `/admin/coming-soon?label=...`, placeholder giống tinh thần `_ComingSoonScreen` bên Flutter) để tránh liên kết chết.
+- **Dashboard** (`Home.razor` viết lại): header gradient indigo/tím giống `_GreetingHeader` Flutter, 4 thẻ KPI **dữ liệu thật** (query thẳng `SmartUniversityContext` — không bịa số: Khoa/Môn học/Giảng viên/Sinh viên), lưới lối tắt 8 thẻ đa màu (xanh dương/tím/teal/cam luân phiên, giống `_FeatureGrid`), hover nổi nhẹ (`translateY` + đổ bóng đậm hơn).
+- **Status Dialog** (tương đương `submit_status_dialog.dart`): `Components/Shared/StatusDialogService.cs` (scoped DI service, có `ChayAsync(nhanDangXuLy, nhanThanhCong, action)` trả `KetQuaThaoTac`) + `StatusDialogHost.razor` (overlay toàn màn hình, spinner CSS xoay → SVG tick xanh/cảnh báo cam/X đỏ, tự đóng sau 700ms nếu thành công, có nút "Đóng" nếu lỗi) — render 1 lần trong `MainLayout`, gọi được từ bất kỳ trang nào qua `@inject StatusDialogService`. Demo dùng nút "↻ Làm mới dữ liệu" trên Dashboard (load lại 4 số KPI qua dialog).
+- **Đã verify qua `curl`** (SSR ban đầu, vì Blazor Server prerender tĩnh trước khi circuit SignalR kết nối): đăng nhập → `/admin` trả về đúng HTML có 4 số KPI thật (khớp dữ liệu seed: 3 khoa/5 môn/2 GV/4 SV), đủ 11 mục sidebar, trang `coming-soon` nhận `label` qua query string hiển thị đúng, CSS (`tokens.css`/`site.css`) trả 200.
+- ⚠️ **CHƯA click-test tương tác thật trên trình duyệt** (nút "Làm mới dữ liệu" mở dialog xoay→tick cần kết nối SignalR sống — `curl` không mô phỏng được) — cùng giới hạn như các flow tương tác Flutter (QR/camera) đã ghi ở Phase 4, cần mở bằng trình duyệt thật để xác nhận.
+- Dùng `color-mix()` CSS (cho các `.tone-*`) — cần trình duyệt hiện đại (Chrome/Edge/Firefox 113+); không phải vấn đề cho công cụ nội bộ nhưng ghi chú lại phòng khi debug trên trình duyệt cũ.
+
+### 3.14 Bug fix — vào được `/admin` một lúc rồi tự đá về login (2026-07-04)
+User test thật trên trình duyệt (Cốc Cốc) phát hiện: đăng nhập xong vào được `/admin`, nhưng **ngay sau đó** tự động bị đá về `/admin/login?returnUrl=admin` (chú ý: không có dấu `/` trước "admin" — đây là dấu hiệu nhận diện bug, xem bên dưới).
+
+**Nguyên nhân:** policy scheme ở mục 3.12 chọn scheme theo path kiểu "mặc định JWT, riêng `/admin/**` mới dùng Cookie". Nhưng circuit SignalR (Blazor Server dùng để "kích hoạt" tương tác sau khi trang đã render tĩnh xong) kết nối qua 1 path nội bộ của framework (không phải `/admin`) → request đó rơi vào nhánh JWT → không có Bearer token → coi như anonymous → circuit vừa kết nối xong thấy "chưa đăng nhập" → `AuthorizeRouteView` tự nhảy `NotAuthorized` → `RedirectToLogin.razor` (dùng `NavigationManager.ToBaseRelativePath` nên ra `returnUrl=admin` không có `/`) → đá về login. Đây là lý do trang admin "hiện ra một lúc rồi mới đá về" — lúc render tĩnh ban đầu (path `/admin`, đúng Cookie) thì vào được, lúc circuit kết nối (path khác, sai JWT) mới bị đá.
+
+**Cách sửa:** đảo ngược logic chọn scheme — **mặc định dùng Cookie, chỉ path bắt đầu bằng `/api` mới dùng JWT** (`Program.cs`, đoạn `ForwardDefaultSelector`). Vì toàn bộ API thật của app đều nằm dưới `/api/**` (đã kiểm tra tất cả Controller), cách này an toàn và không phụ thuộc vào việc phải biết chính xác path nội bộ của Blazor SignalR là gì.
+- Đã verify lại qua `curl` toàn bộ 4 bước: `/admin` chưa đăng nhập → redirect login; đăng nhập → cookie set đúng; `/admin` với cookie → 200; **API JWT vẫn hoạt động y hệt** (có token → 200, không token → 401) — không bị ảnh hưởng bởi thay đổi.
+- ⚠️ Bug này **không thể phát hiện qua `curl`** (curl không mô phỏng kết nối SignalR/circuit) — chỉ lộ ra khi user test tay bằng trình duyệt thật. Bài học: mọi thay đổi liên quan tới auth scheme của Blazor Server bắt buộc phải test bằng trình duyệt thật, không chỉ tin vào kết quả `curl`.
+
+⚠️ **Việc tiếp theo cho Blazor admin:** user cần xác nhận lại bằng trình duyệt thật rằng bug đã hết trước khi xây tiếp; sau đó xây từng màn quản lý thật (thay `ComingSoon.razor`) — bắt đầu từ mục nào do user chỉ định; có thể tái dùng `MainLayout`/`StatusDialogService`/design tokens hiện có.
+
+### 3.15 Backend — List + tìm kiếm Giảng viên/Sinh viên (2026-07-04, lỗ hổng cũ đã lấp)
+Trước khi xây Blazor cho 2 mục "Giảng viên"/"Sinh viên", đã khảo sát: 8/10 mục sidebar admin đã có sẵn service CRUD đầy đủ (Faculty/Department/Major/Program/Course/AcademicTerm/AdminClass/CourseOffering/Document) — **tái dùng thẳng, không viết thêm**. Riêng Giảng viên/Sinh viên (`ProfileService`) trước đó chỉ có lấy/tạo/sửa theo 1 `userId`, chưa có list toàn bộ — đúng lỗ hổng đã ghi ở mục 5 các phiên trước.
+
+**Đã thêm (tái dùng DTO có sẵn, không tạo DTO mới):**
+- `ProfileService.LayDanhSachSVAsync(page, pageSize, timKiem?, adminClassId?)` → `PagedResult<StudentProfileDto>` — tìm theo `FullName`/`LoginCode` chứa `timKiem`, lọc theo lớp hành chính.
+- `ProfileService.LayDanhSachGVAsync(page, pageSize, timKiem?, facultyId?, departmentId?)` → `PagedResult<LecturerProfileDto>` — tương tự, lọc theo khoa/bộ môn.
+- `GET /api/profiles/students?page=&pageSize=&search=&adminClassId=` và `GET /api/profiles/lecturers?page=&pageSize=&search=&facultyId=&departmentId=` — cả 2 `[Authorize(Policy = "AccountProvisioning")]` (chỉ Admin/AcademicOffice; khác endpoint lấy-theo-ID cũ đang mở cho mọi role, vì đây là danh sách toàn bộ người dùng — dữ liệu nhạy cảm hơn).
+- Verify qua `curl`: list/search đúng dữ liệu thật, `lecturer01` gọi bị `403`, không token bị `401`, tìm không khớp trả mảng rỗng (không lỗi).
+- ⚠️ **Lưu ý số liệu lệch (không phải bug):** KPI Dashboard (mục 3.13) đếm **User có role Student/Lecturer** (4 SV / 2 GV theo UserRoles), còn list mới này chỉ trả về user **đã có `StudentProfile`/`LecturerProfile`** (hiện chỉ 1/1) — 2 khái niệm khác nhau (có role ≠ đã tạo hồ sơ), là dữ liệu seed thật chưa đủ profile, không cần sửa gì.
+
+⚠️ **Việc tiếp theo:** xây Blazor page cho Giảng viên/Sinh viên dùng 2 endpoint mới này (thay `ComingSoon.razor`), rồi lần lượt các mục còn lại.
+
+### 3.16 Blazor — trang Sinh viên & Giảng viên đầu tiên (2026-07-04, pattern mẫu cho các mục còn lại)
+Xây xong 2 trang Blazor thật đầu tiên, thay `ComingSoon.razor` cho 2 mục sidebar:
+- `Components/Pages/Students.razor` (route `/admin/students`) và `Lecturers.razor` (route `/admin/lecturers`) — cùng 1 pattern: gọi thẳng `ProfileService` (đã đăng ký DI sẵn) qua `LayDanhSachSVAsync`/`LayDanhSachGVAsync` (mục 3.15), ô tìm kiếm (debounce bằng Enter hoặc nút "Tìm"), bảng dữ liệu (`.data-table`), badge trạng thái màu cho SV (`.badge-success/info/danger`), phân trang Trước/Sau (`.pagination`), empty-state khi không có kết quả.
+- **Lỗi cú pháp gặp phải:** không thể viết lambda inline `@oninput="e => ... ?? \"\""` trong thuộc tính Razor — dấu `\"` escape không hợp lệ trong ngữ cảnh này (`CS1525`/`CS1056`). Phải tách ra thành method riêng (`XuLyGoTim(ChangeEventArgs e)`) trong `@code`. **Áp dụng cho mọi trang Blazor sau này:** không escape quote trong lambda inline ở attribute, luôn tách method nếu cần literal string.
+- Đã nối `NavMenu.razor` (2 mục Giảng viên/Sinh viên trỏ thẳng route thật, hết `Lien(...)`) và `Home.razor` (2 thẻ lối tắt tương ứng).
+- CSS mới trong `site.css`: `.page-header/.page-title`, `.toolbar`, `.search-input`, `.data-table`, `.badge-*`, `.pagination` — dùng chung design tokens đã có (mục 3.13), sẽ tái dùng nguyên xi cho các trang list còn lại (Khoa/Môn học/...).
+- Verify qua `curl`: cả 2 trang trả `200` với dữ liệu thật (`student01`/`Trần Thị B`/`KTPM2023A`/`Đang học`, `lecturer01`/`Nguyễn Văn A`/`Thạc sĩ`/khoa+bộ môn đúng), sidebar highlight đúng mục đang chọn (`admin-nav__link active`).
+- ⚠️ Tương tác thật (gõ tìm kiếm, bấm phân trang) **chưa click-test qua trình duyệt** — cùng giới hạn `curl` như các mục trước, cần user xác nhận bằng mắt.
+
+⚠️ **Việc tiếp theo:** dùng lại đúng pattern này (service DI → bảng → tìm kiếm → phân trang) cho các mục sidebar còn lại theo thứ tự do user chọn (Khoa/Bộ môn/Ngành/Chương trình/Môn học/Học kỳ/Lớp hành chính/Lớp học phần/Tài liệu).
+
+### 3.17 Blazor — render toàn bộ 9 mục sidebar còn lại (2026-07-04, tất cả list-only, chưa CRUD)
+Nhân bản pattern mục 3.16 sang toàn bộ sidebar còn lại. Tất cả đều **chỉ đọc (list + phân trang), chưa có tạo/sửa/xoá** — đúng scope "render" user yêu cầu, không tự ý mở rộng thêm CRUD.
+
+**8 trang read-only đơn giản** (gọi thẳng service có sẵn qua DI, không cần code backend mới):
+- `Faculties.razor` (`/admin/faculties`) → `FacultyService.GetListAsync`
+- `Departments.razor` (`/admin/departments`) → `DepartmentService.LayDanhSachAsync`
+- `Majors.razor` (`/admin/majors`) → `MajorService.GetListAsync`
+- `Programs.razor` (`/admin/programs`) → `ProgramService.GetListAsync`
+- `Courses.razor` (`/admin/courses`) → `CourseService.GetListAsync`
+- `AcademicTerms.razor` (`/admin/academic-terms`) → `AcademicTermService.LayDanhSachAsync`
+- `AdminClasses.razor` (`/admin/admin-classes`) → `AdminClassService.LayDanhSachAsync`
+- `CourseOfferings.razor` (`/admin/course-offerings`) → `CourseOfferingService.LayDanhSachAsync`, có badge màu theo `Status` (Đang mở/Đã hủy)
+
+**`Documents.razor` (`/admin/documents`) phức tạp hơn — cần 1 controller mới:**
+- UI: dropdown chọn Môn học (load từ `CourseService`) → hiện danh sách tài liệu **chung của môn đó** (`DocumentService.LayDanhSachAsync(courseId, null, userId, isStaff:true)`). Chưa hỗ trợ xem tài liệu theo lớp học phần (`CourseOfferingId`) — để sau nếu cần.
+- ⚠️ **Vấn đề phát hiện khi làm:** link tải file không thể trỏ thẳng `/api/documents/{id}/download` như bên Flutter, vì path đó giờ chỉ nhận JWT (mục 3.14 đã đổi `/api/**` → JWT-only) — trang Blazor chỉ có Cookie, không có JWT, sẽ bị 401. **Giải pháp:** thêm controller mới `Controllers/Admin/AdminDocumentsController.cs`, route `GET /admin/documents/{id}/download` (nằm ngoài `/api`, dùng Cookie, `[Authorize(Policy="AccountProvisioning")]`), gọi lại `DocumentService.LayFileDeTaiAsync` y hệt endpoint API. **Quy tắc rút ra cho các tính năng sau:** bất kỳ action nào trang Blazor cần gọi (đặc biệt là action ghi/tải file, không phải page điều hướng) đều phải có route riêng ngoài `/api/**`, không dùng chung endpoint với Flutter/API JWT.
+- `NavMenu.razor` và `Home.razor` đã cập nhật hết — không còn mục nào trỏ `ComingSoon.razor` ngoại trừ **Bộ môn, Chương trình đào tạo, Lớp hành chính** không có trên lưới lối tắt Dashboard (vẫn có trang thật, chỉ là dashboard chỉ hiện 8 ô đại diện — xem sidebar để vào đủ 3 mục này).
+- Verify qua `curl`: cả 9 route trả `200` với dữ liệu thật đúng (Khoa/Bộ môn/Ngành/CTĐT/Môn học/Học kỳ/Lớp hành chính/Lớp học phần/dropdown môn học của Tài liệu); route tải file admin (`/admin/documents/2/download`) trả đúng file bằng cookie.
+- ⚠️ Tương tác thật (chọn dropdown, phân trang nhiều trang) **chưa click-test qua trình duyệt** — cần user xác nhận.
+
+⚠️ **Việc tiếp theo:** toàn bộ 10 mục sidebar giờ đã có trang thật (đọc dữ liệu). Còn thiếu: (1) CRUD thật (tạo/sửa/xoá) cho từng mục — hiện chỉ đọc; (2) tài liệu theo lớp học phần (`CourseOfferingId`) trong `Documents.razor`; (3) `Coming Soon.razor` giờ không còn nơi nào trỏ tới, có thể xoá nếu không dùng nữa (chưa xoá, để phòng khi cần placeholder cho tính năng mới).
+
+### 3.18 Blazor — CRUD thật cho Khoa/Lớp hành chính/Lớp học phần/Giảng viên/Sinh viên + tạo tài khoản nhân viên (2026-07-04)
+Theo yêu cầu "Nhóm 2" (thu hẹp phạm vi từ đề xuất ban đầu — chỉ 4 mục + 1 tính năng mới, không làm Bộ môn/Ngành/Chương trình/Môn học/Học kỳ ở vòng này). **Không cần viết backend mới** cho 3/4 mục đầu — khảo sát xác nhận `FacultyService`/`AdminClassService`/`CourseOfferingService` đã có sẵn đủ `Create/Update/Deactivate` (hoặc Huỷ/ĐổiGV/GánSV) từ trước.
+
+**Quyết định đã chốt với user trước khi code (đúng yêu cầu "cân nhắc trước khi làm"):**
+- Sửa Sinh viên: **chỉ đổi Trạng thái** (Đang học/Tốt nghiệp/Nghỉ học), không đổi Lớp hành chính — dùng đúng API có sẵn, không viết thêm backend.
+- **Không xây tính năng Xoá/Vô hiệu hoá cho hồ sơ Giảng viên/Sinh viên** — user tự đặt câu hỏi ngược "viết xóa trong database có sai quy tắc nghề nghiệp không" và tự kết luận không cần; khớp với convention đã ghi trong `BACKEND_DESIGN_RULES.md` (soft-delete, không hard-delete) — tài khoản User nên khoá ở cấp `Users.Status`, không phải xoá cấp Profile.
+- **Tạo tài khoản nhân viên**: user làm rõ đây là tài khoản "nhân viên cấp cao/quản lý" của trường → giới hạn 3 vai trò **Admin/AcademicOffice/DepartmentStaff** (không gồm Lecturer/Student — 2 vai trò đó đã có luồng tạo riêng gộp trong chính trang Giảng viên/Sinh viên).
+
+**Cách "Tạo" Giảng viên/Sinh viên hoạt động (2 bước gộp làm 1 form):**
+Vì `ProfileService.TaoProfileGVAsync/TaoProfileSVAsync` yêu cầu **User đã tồn tại sẵn** (chỉ tạo hồ sơ gắn vào user có sẵn, không tạo tài khoản) — form "+ Thêm giảng viên/sinh viên" gộp cả 2 bước: (1) gọi `IAuthService.RegisterAsync` (inject thẳng qua DI, KHÔNG gọi qua `/api/auth/register` vì path đó giờ chỉ nhận JWT — xem mục 3.14/3.17 về nguyên tắc "mọi action Blazor cần route riêng ngoài `/api/**`", ở đây giải quyết gọn hơn nữa bằng cách bỏ qua HTTP hoàn toàn, gọi service C# trực tiếp); (2) `RegisterAsync` không trả về `UserId` mới (chỉ trả `AuthResult.Ok()` rỗng) → phải tự query `Db.Users.Where(LoginCode=...).Select(UserId).FirstAsync()` ngay sau đó để lấy `UserId` vừa tạo, rồi mới gọi `TaoProfileGVAsync/TaoProfileSVAsync`.
+- Kiểm tra trùng `LoginCode` được làm thủ công trước (giống pattern `AdminAuthController`) vì `RegisterAsync` tự nó cũng check trùng nhưng thông báo lỗi chung chung — check trước cho thông báo rõ ràng hơn qua `StatusDialogService` (cảnh báo cam thay vì lỗi đỏ).
+
+**File đã tạo/sửa:**
+- CSS mới dùng chung: `.modal-overlay/.modal-card/.form-group/.form-row/.form-checkboxes/.modal-actions/.form-error/.row-actions` trong `site.css` — mọi form Tạo/Sửa sau này tái dùng nguyên bộ này.
+- `Faculties.razor`: + Thêm khoa / Sửa / Vô hiệu hoá.
+- `AdminClasses.razor`: + Thêm lớp (chọn Chương trình) / Sửa (tên, cố vấn) / Vô hiệu hoá / Gán sinh viên (nhập UserId).
+- `CourseOfferings.razor`: + Thêm lớp học phần (chọn Môn học/Học kỳ/Giảng viên) / Sửa (sức chứa, lịch, phòng) / Huỷ lớp / Đổi giảng viên.
+- `Lecturers.razor`: + Thêm giảng viên (tài khoản + Khoa/Bộ môn/học hàm gộp 1 form) / Sửa hồ sơ (Khoa/Bộ môn/học hàm).
+- `Students.razor`: + Thêm sinh viên (tài khoản + Lớp hành chính/khoá gộp 1 form) / Sửa trạng thái.
+- `StaffAccounts.razor` (route mới `/admin/accounts/new`): form tạo tài khoản Admin/AcademicOffice/DepartmentStaff, thêm mục sidebar "➕ Tạo tài khoản nhân viên".
+- `Program.cs`: đăng ký thêm không cần gì mới (mọi service dùng đều đã có sẵn trong DI).
+- `_Imports.razor`: thêm `@using Microsoft.EntityFrameworkCore` và `@using SmartUniversity.Models` toàn cục (nhiều trang cần query `SmartUniversityContext` trực tiếp).
+- Verify qua `curl`: cả 6 route (`faculties`, `admin-classes`, `course-offerings`, `lecturers`, `students`, `accounts/new`) trả `200`, đúng nút/checkbox render (Thêm khoa, Gán SV, Đổi GV, Huỷ lớp, Thêm giảng viên, Thêm sinh viên, 3 checkbox vai trò).
+- ⚠️ **QUAN TRỌNG — giới hạn đã nói rõ với user:** `curl` chỉ verify được HTML render ban đầu, **không thể click nút/mở modal/submit form** vì toàn bộ thao tác Tạo/Sửa/Xoá là tương tác Blazor Server qua circuit SignalR (event `@onclick`), không phải HTTP request/response độc lập. **Toàn bộ 6 luồng CRUD trong mục này CHƯA được click-test qua trình duyệt thật** — cần user tự bấm thử (mở modal, điền form, lưu, xem `StatusDialogHost` báo thành công/lỗi, xem bảng có tự làm mới không).
+
+⚠️ **Việc tiếp theo:** (1) User click-test 6 luồng CRUD mới; (2) nếu ổn, cân nhắc làm nốt CRUD cho Bộ môn/Ngành/Chương trình/Môn học/Học kỳ (đã có backend, chỉ còn nối UI, theo đúng pattern vừa dùng); (3) Documents theo `CourseOfferingId`.
+
 ---
 
 ## 4. Sự thật cần sửa so với context cũ (đã kiểm chứng lại)
@@ -87,24 +218,25 @@ File mới `lib/features/academic/screens/widgets/submit_status_dialog.dart` —
 
 ---
 
-## 5. Đề xuất việc tiếp theo — **mục tiêu phiên tới: backend**
+## 5. Đề xuất việc tiếp theo
 
-Thứ tự ưu tiên đề xuất:
+⚠️ **Đang chờ input:** user sẽ cung cấp yêu cầu chi tiết cho các màn quản lý Blazor admin (mục 3.12) ở phiên sau — đó sẽ là việc ưu tiên khi có. Nếu chưa có, làm theo thứ tự dưới đây (Flutter Documents UI):
 
-1. **Phase 5 — Documents (backend, đúng thứ tự roadmap):** thiết kế bảng `Documents` (owner, scope theo Course/CourseOffering, file metadata), quyết định lưu file ở đâu (file system/blob — không lưu bytes trong SQL), viết migration, endpoint upload (validate loại/kích thước file) + download (access-scoped) + list + soft-delete.
+1. **Phase 5 — Documents (Flutter, đúng thứ tự roadmap):** backend đã xong + verify (mục 3.10). Cần xây: model/service `document.dart`/`document_service.dart` (theo pattern các entity khác), màn danh sách tài liệu theo Course/CourseOffering, màn upload (file picker, chỉ Lecturer/Admin/AcademicOffice thấy nút), mở/tải file về.
 2. **Endpoint list/search giảng viên + sinh viên (backend, ngắn hạn, thay placeholder ở Dashboard):**
    - `GET /api/lecturers` — danh sách + tìm kiếm (lọc theo Khoa/Bộ môn), dùng để thay `_ComingSoonScreen` ở tile "Quản lý giảng viên".
    - `GET /api/students` — danh sách + tìm kiếm (lọc theo AdminClass), dùng để thay `_ComingSoonScreen` ở tile "Quản lý sinh viên".
    - Cả 2 chưa tồn tại — Module 2.3 hiện tại chỉ có endpoint tạo/xem theo ID, không có list toàn bộ.
 3. **(Frontend, làm sau nếu còn thời gian)** Nhân rộng `submit_status_dialog.dart` từ Faculty sang 6 form CRUD còn lại.
-4. **(Đợi điều kiện)** Test luồng QR điểm danh thật trên điện thoại khi có máy.
+4. **(Đợi điều kiện)** Phase 4 giờ chỉ còn việc này: test luồng quét QR + GPS thật trên điện thoại khi có máy (`attendance_session_screen.dart`/`qr_scan_screen.dart` đã build + wire xong, xem mục 3.11).
 
 ### Gợi ý prompt để mở phiên mới
 
 ```
-Đọc CONTEXT.md và ROADMAP_PROJECT.md, sau đó bắt đầu Phase 5 (Documents) ở backend —
-thiết kế bảng Documents + endpoint upload/download, theo đúng pattern
-Controller → Service → DTO đã dùng cho các entity khác.
+Đọc CONTEXT.md và ROADMAP_PROJECT.md. Backend Phase 5 (Documents) đã xong và verify —
+xem mục 3.10 CONTEXT.md cho API contract. Hãy xây Flutter UI: model/service Document,
+màn danh sách + upload + tải tài liệu theo Course/CourseOffering, theo đúng pattern
+các màn academic khác trong lib/features/academic/.
 ```
 
 hoặc:

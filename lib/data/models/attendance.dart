@@ -63,6 +63,7 @@ class AttendanceRecord {
     required this.loginCode,
     required this.adminClassName,
     required this.checkedInAtUtc,
+    required this.status,
   });
 
   final int attendanceRecordId;
@@ -72,6 +73,11 @@ class AttendanceRecord {
   final String adminClassName;
   final DateTime checkedInAtUtc;
 
+  /// 1 = Đúng giờ, 2 = Trễ
+  final int status;
+
+  bool get treGio => status == 2;
+
   factory AttendanceRecord.fromJson(Map<String, dynamic> json) =>
       AttendanceRecord(
         attendanceRecordId: json['attendanceRecordId'] as int,
@@ -80,6 +86,7 @@ class AttendanceRecord {
         loginCode: json['loginCode'] as String,
         adminClassName: json['adminClassName'] as String? ?? '',
         checkedInAtUtc: DateTime.parse(json['checkedInAtUtc'] as String),
+        status: json['status'] as int? ?? 1,
       );
 }
 
@@ -90,6 +97,7 @@ class MyAttendanceItem {
     this.closedAtUtc,
     required this.daMat,
     this.checkedInAtUtc,
+    this.status,
   });
 
   final int attendanceSessionId;
@@ -99,6 +107,11 @@ class MyAttendanceItem {
   /// true = SV đã điểm danh buổi này
   final bool daMat;
   final DateTime? checkedInAtUtc;
+
+  /// 1 = Đúng giờ, 2 = Trễ; null nếu vắng
+  final int? status;
+
+  bool get treGio => status == 2;
 
   factory MyAttendanceItem.fromJson(Map<String, dynamic> json) =>
       MyAttendanceItem(
@@ -111,5 +124,6 @@ class MyAttendanceItem {
         checkedInAtUtc: json['checkedInAtUtc'] != null
             ? DateTime.parse(json['checkedInAtUtc'] as String)
             : null,
+        status: json['status'] as int?,
       );
 }
