@@ -5,6 +5,7 @@ import 'package:smart_university_management_platform/data/models/course.dart';
 import 'package:smart_university_management_platform/data/services/course_service.dart';
 import 'package:smart_university_management_platform/main.dart';
 import 'course_form_screen.dart';
+import 'document_list_screen.dart';
 
 // ============================================================================
 // COURSE LIST SCREEN  —  danh sách môn học
@@ -81,6 +82,19 @@ class _CourseListScreenState extends State<CourseListScreen> {
       _danhSach = ketQua.data?.items ?? [];
       _loi = ketQua.error;
     });
+  }
+
+  void _xemTaiLieu(CourseItem mon) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => DocumentListScreen(
+          courseId: mon.courseId,
+          tieuDe: 'Tài liệu — ${mon.name}',
+          coTheTaiLen: _coQuyenGhi,
+        ),
+      ),
+    );
   }
 
   Future<void> _moForm({CourseItem? mon}) async {
@@ -199,6 +213,7 @@ class _CourseListScreenState extends State<CourseListScreen> {
           coQuyenGhi: _coQuyenGhi,
           onSua: () => _moForm(mon: _danhSach[i]),
           onXoa: () => _xacNhanXoa(_danhSach[i]),
+          onXemTaiLieu: () => _xemTaiLieu(_danhSach[i]),
         ),
       ),
     );
@@ -213,12 +228,14 @@ class _MonHocTile extends StatelessWidget {
     required this.coQuyenGhi,
     required this.onSua,
     required this.onXoa,
+    required this.onXemTaiLieu,
   });
 
   final CourseItem mon;
   final bool coQuyenGhi;
   final VoidCallback onSua;
   final VoidCallback onXoa;
+  final VoidCallback onXemTaiLieu;
 
   /// Xây chuỗi phụ đề: code + đơn vị sở hữu (ưu tiên bộ môn, fallback khoa).
   String get _phuDe {
@@ -262,7 +279,17 @@ class _MonHocTile extends StatelessWidget {
             style: Theme.of(context).textTheme.bodyMedium,
           ),
         ),
-        trailing: coQuyenGhi ? _ActionMenu(onSua: onSua, onXoa: onXoa) : null,
+        trailing: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            IconButton(
+              tooltip: 'Tài liệu',
+              icon: const Icon(Icons.folder_open_rounded, size: 20),
+              onPressed: onXemTaiLieu,
+            ),
+            if (coQuyenGhi) _ActionMenu(onSua: onSua, onXoa: onXoa),
+          ],
+        ),
       ),
     );
   }

@@ -1009,11 +1009,11 @@ Completion: 2/2 — verified via API 2026-07-04: `PUT /api/documents/{id}/deacti
 
 ### Feature: Documents UI
 
-* [ ] Document list per course/offering
-* [ ] Upload screen (lecturer/staff)
-* [ ] Open/download a document
+* [x] Document list per course/offering — `document_list_screen.dart`, dùng chung 1 màn cho cả 2 scope (courseId hoặc courseOfferingId), entry point từ `course_list_screen.dart` (tài liệu chung theo môn) và `course_offering_list_screen.dart` (tài liệu riêng theo lớp học phần)
+* [x] Upload screen (lecturer/staff) — nút "Tải lên" (FAB) dùng `file_picker`, gọi `POST /api/documents` multipart; chỉ hiện khi `coTheTaiLen` (Lecturer/Admin/AcademicOffice)
+* [x] Open/download a document — tải bytes qua `GET /api/documents/{id}/download`, lưu ra thư mục Downloads (`path_provider`), không tự mở file (theo quyết định 2026-07-04 — đơn giản hơn, tránh thêm package mở-file đa nền tảng)
 
-Completion: 0/3
+Completion: 3/3 — built 2026-07-04, `flutter analyze` sạch. ⚠️ Chưa click-test trên thiết bị thật (chọn file, tải lên, xem danh sách, tải xuống) — cần xác nhận bằng tay.
 
 - **Objective:** Manage documents from the app.
 - **Expected outcome:** Users browse, upload (if permitted), and open documents.
@@ -1026,7 +1026,7 @@ Completion: 0/3
 * [x] Upload validates type/size and is authorized by scope.
 * [x] Download enforces access scope.
 * [x] Documents listable per course/offering and soft-deletable by owner/staff.
-* [ ] Flutter supports browse, upload, and open. — backend fully verified via API (2026-07-04); Flutter UI not built yet.
+* [x] Flutter supports browse, upload, and open. — backend verified via API (2026-07-04); Flutter UI built 2026-07-04 (`flutter analyze` sạch), chưa click-test tay trên thiết bị thật.
 
 ---
 
@@ -1290,11 +1290,11 @@ Completion: 0/3
 | Phase 2 — Academic Structure | 68 | 43 | 63% |
 | Phase 3 — Enrollment & Timetable | 26 | 18 | 69% |
 | Phase 4 — Attendance | 32 | 31 | 97% |
-| Phase 5 — Documents | 16 | 13 | 81% |
+| Phase 5 — Documents | 16 | 16 | 100% |
 | Phase 6 — Notification | 16 | 0 | 0% |
 | Phase 7 — Analytics | 14 | 0 | 0% |
 | Phase 8 — AI Assistant | 17 | 0 | 0% |
-| **Project Total** | **280** | **188** | **67%** |
+| **Project Total** | **280** | **191** | **68%** |
 
 ## Overall Progress
 
@@ -1304,11 +1304,11 @@ Phase 1: 88%  (57/65)
 Phase 2: 63%  (43/68)
 Phase 3: 69%  (18/26)
 Phase 4: 97%  (31/32)
-Phase 5: 81%  (13/16)
+Phase 5: 100% (16/16)
 Phase 6: 0%   (0/16)
 Phase 7: 0%   (0/14)
 Phase 8: 0%   (0/17)
-Project Total: 67%   (188/280)
+Project Total: 68%   (191/280)
 ```
 
 ## Milestones

@@ -9,6 +9,7 @@ import 'package:smart_university_management_platform/data/services/enrollment_se
 import 'package:smart_university_management_platform/main.dart';
 import 'attendance_session_screen.dart';
 import 'course_offering_form_screen.dart';
+import 'document_list_screen.dart';
 import 'my_enrollments_screen.dart';
 import 'roster_screen.dart';
 
@@ -109,6 +110,19 @@ class _CourseOfferingListScreenState extends State<CourseOfferingListScreen> {
         builder: (_) => AttendanceSessionScreen(
           session: kq.data!,
           offeringCode: lopHP.code,
+        ),
+      ),
+    );
+  }
+
+  void _xemTaiLieu(CourseOfferingItem lopHP) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => DocumentListScreen(
+          courseOfferingId: lopHP.courseOfferingId,
+          tieuDe: 'Tài liệu — ${lopHP.code}',
+          coTheTaiLen: _laGiangVien || _coQuyenGhi,
         ),
       ),
     );
@@ -366,6 +380,7 @@ class _CourseOfferingListScreenState extends State<CourseOfferingListScreen> {
           onDangKy: () => _dangKy(_danhSach[i]),
           onXemRoster: () => _xemRoster(_danhSach[i]),
           onMoDiemDanh: () => _moDiemDanh(_danhSach[i]),
+          onXemTaiLieu: () => _xemTaiLieu(_danhSach[i]),
           onSua: () => _moForm(lop: _danhSach[i]),
           onHuyLop: () => _huyLop(_danhSach[i]),
           onDoiGiangVien: () => _doiGiangVien(_danhSach[i]),
@@ -386,6 +401,7 @@ class _LopHPTile extends StatefulWidget {
     required this.onDangKy,
     required this.onXemRoster,
     required this.onMoDiemDanh,
+    required this.onXemTaiLieu,
     required this.onSua,
     required this.onHuyLop,
     required this.onDoiGiangVien,
@@ -398,6 +414,7 @@ class _LopHPTile extends StatefulWidget {
   final VoidCallback onDangKy;
   final VoidCallback onXemRoster;
   final VoidCallback onMoDiemDanh;
+  final VoidCallback onXemTaiLieu;
   final VoidCallback onSua;
   final VoidCallback onHuyLop;
   final VoidCallback onDoiGiangVien;
@@ -485,6 +502,14 @@ class _LopHPTileState extends State<_LopHPTile> {
                     Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
+                        IconButton(
+                          tooltip: 'Tài liệu',
+                          icon: const Icon(Icons.folder_open_rounded, size: 18),
+                          constraints: const BoxConstraints(),
+                          padding: const EdgeInsets.all(4),
+                          onPressed: widget.onXemTaiLieu,
+                        ),
+                        const SizedBox(width: 4),
                         _TrangThaiBadge(dangMo: lopHP.dangMo),
                         if (widget.coQuyenGhi)
                           _ActionMenu(

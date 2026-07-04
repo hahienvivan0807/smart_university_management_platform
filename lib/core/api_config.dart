@@ -240,6 +240,30 @@ class ApiConfig {
   static Uri myAttendance(int offeringId) =>
       Uri.parse('$baseUrl/api/offerings/$offeringId/my-attendance');
 
+  // ── Documents ─────────────────────────────────────────────────────────────
+
+  /// GET /api/documents?courseId=&courseOfferingId=  (đúng 1 trong 2)
+  static Uri documents({int? courseId, int? courseOfferingId}) {
+    final params = <String, String>{};
+    if (courseId != null) params['courseId'] = '$courseId';
+    if (courseOfferingId != null) {
+      params['courseOfferingId'] = '$courseOfferingId';
+    }
+    return Uri.parse('$baseUrl/api/documents')
+        .replace(queryParameters: params.isEmpty ? null : params);
+  }
+
+  /// POST /api/documents (multipart/form-data)
+  static Uri get documentsUpload => Uri.parse('$baseUrl/api/documents');
+
+  /// GET /api/documents/{id}/download
+  static Uri documentDownload(int id) =>
+      Uri.parse('$baseUrl/api/documents/$id/download');
+
+  /// PUT /api/documents/{id}/deactivate
+  static Uri documentDeactivate(int id) =>
+      Uri.parse('$baseUrl/api/documents/$id/deactivate');
+
   /// How long to wait before giving up on a request.
   static const Duration timeout = Duration(seconds: 15);
 }

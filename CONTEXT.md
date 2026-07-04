@@ -12,7 +12,7 @@
 
 Hệ thống đăng ký học phần theo tín chỉ (sinh viên tự đăng ký vào các `CourseOffering` do staff tạo sẵn).
 
-**Tiến độ tổng:** xem `ROADMAP_PROJECT.md` — hiện **69% (188/272 task)**. Phase 0-1 100%, Phase 2 63%, Phase 3 69%, Phase 4 97% (gần như xong, chỉ thiếu click-test tay trên điện thoại thật), Phase 5 81% (backend xong, Flutter UI chưa), Phase 6-8 chưa bắt đầu (0%).
+**Tiến độ tổng:** xem `ROADMAP_PROJECT.md` — hiện **68% (191/280 task)**. Phase 0-1 gần xong, Phase 2 63% (backend+Blazor CRUD nay đã phủ đủ cả 7 entity + curriculum/prerequisite, xem mục 3.19), Phase 3 69%, Phase 4 97% (gần như xong, chỉ thiếu click-test tay trên điện thoại thật), Phase 5 **100%** (backend + Blazor + Flutter UI đều xong, xem mục 3.19–3.21), Phase 6-8 chưa bắt đầu (0%).
 
 ---
 
@@ -22,10 +22,10 @@ Hệ thống đăng ký học phần theo tín chỉ (sinh viên tự đăng ký
 |---|---|
 | Phase 0 — Foundation | ✅ 100% |
 | Phase 1 — Auth | ✅ 100% |
-| Phase 2 — Academic Structure | 🟡 63% — CRUD backend đủ 7 entity, Flutter admin UI đã xây xong hết (xem mục 3) |
+| Phase 2 — Academic Structure | 🟡 63% — CRUD backend + Blazor UI nay phủ đủ cả 7 entity (Khoa/Bộ môn/Ngành/CTĐT/Môn học/Học kỳ/Lớp hành chính/Lớp học phần) kèm curriculum + prerequisite management, tìm kiếm tức thời, xem chi tiết (mục 3.19) |
 | Phase 3 — Enrollment & Timetable | 🟡 69% — đăng ký/hủy môn + Timetable đã xong; còn thiếu Lecturer timetable (backend chỉ cho Student), import-based module 3.1 đã lỗi thời (bỏ qua, không làm theo) |
 | Phase 4 — Attendance | 🟢 97% — backend + edge case (trùng/đóng lớp/không enroll) + trễ giờ đã verify qua API; 4 màn Flutter đã xây + `flutter analyze` sạch; **CHƯA test tay** trên điện thoại thật (máy dev không có camera) |
-| Phase 5 — Documents | 🟡 81% — **backend xong + verify qua API**; Flutter UI (browse/upload/download) **chưa bắt đầu, nên làm tiếp theo** |
+| Phase 5 — Documents | ✅ 100% — backend + Blazor (theo Course lẫn CourseOffering) + Flutter UI (browse/upload/download) đều xong (mục 3.20–3.21); ⚠️ Flutter UI chưa click-test tay |
 | Phase 6 — Notification | ⬜ 0% |
 | Phase 7 — Analytics | ⬜ 0% |
 | Phase 8 — AI Assistant | ⬜ 0% — cố tình để cuối, cần đọc dữ liệu từ Phase 5-7 |
@@ -208,6 +208,37 @@ Vì `ProfileService.TaoProfileGVAsync/TaoProfileSVAsync` yêu cầu **User đã 
 
 ⚠️ **Việc tiếp theo:** (1) User click-test 6 luồng CRUD mới; (2) nếu ổn, cân nhắc làm nốt CRUD cho Bộ môn/Ngành/Chương trình/Môn học/Học kỳ (đã có backend, chỉ còn nối UI, theo đúng pattern vừa dùng); (3) Documents theo `CourseOfferingId`.
 
+### 3.19 Blazor — CRUD + tìm kiếm + chi tiết cho 5 mục còn lại: Bộ môn/Ngành/CTĐT/Môn học/Học kỳ (2026-07-04)
+User xác nhận 6 luồng CRUD mục 3.18 ổn, yêu cầu nhân rộng sang 5 mục còn lại — **gồm cả curriculum/prerequisite UI** (user chọn scope rộng khi được hỏi), không chỉ CRUD cơ bản.
+
+- **CRUD cơ bản** (Tạo/Sửa/Vô hiệu hóa, trừ AcademicTerm không có Vô hiệu hóa vì service không hỗ trợ) cho cả 5 trang, tái dùng đúng pattern `.modal-overlay`/`StatusDialogService.ChayAsync` từ mục 3.18. Không viết thêm backend — mọi service đã có sẵn `Create/Update/Deactivate` từ Phase 2.
+- **Curriculum UI (Programs.razor):** modal "Môn học" — xem/thêm/xoá môn học trong 1 chương trình đào tạo (`ProgramService.AddCourseAsync/RemoveCourseAsync/GetCoursesAsync`, đã có sẵn).
+- **Prerequisite UI (Courses.razor):** modal "Tiên quyết" — xem/thêm/xoá môn tiên quyết (`CourseService.AddPrerequisiteAsync/RemovePrerequisiteAsync/GetPrerequisitesAsync`, đã có sẵn).
+- **Tìm kiếm + Xem chi tiết** (yêu cầu thêm ngay sau đó, xem bên dưới) áp dụng luôn cho cả 5 trang này cùng lúc với 2 trang cũ hơn (Students/Lecturers).
+
+**Tìm kiếm — 3 vòng lặp cải tiến trong cùng phiên:**
+1. Thêm search param tùy chọn (trailing, backward-compatible) vào 5 service list method (`DepartmentService.LayDanhSachAsync`, `MajorService/ProgramService/CourseService.GetListAsync`, `AcademicTermService.LayDanhSachAsync`) — lọc theo Code/Name/ID (riêng AcademicTerm không có field tên/mã dạng chữ, chỉ lọc theo `AcademicTermId`/`AcademicYear`).
+2. User yêu cầu lọc tức thời khi gõ (không cần bấm nút) → thêm debounce 400ms ban đầu, sau đó user yêu cầu bỏ hẳn debounce (lọc theo từng ký tự).
+3. **Bug phát hiện khi user test tay:** gõ nhanh → "Đang tải" kẹt mãi, kể cả sau khi xóa hết ô tìm kiếm. **Nguyên nhân:** service (`ProgramService` etc.) dùng chung 1 `DbContext` theo scope Blazor circuit; gõ nhanh sinh nhiều lệnh gọi DB chồng lấn trên cùng context → EF Core ném lỗi ngầm "a second operation was started..." → `_dangTai` không bao giờ được set `false`. **Đã sửa:** `SemaphoreSlim` serialize truy vấn + kiểm tra lại `_searchRequestId` ngay sau khi giành lock (bỏ qua DB hoàn toàn nếu đã có lần gõ mới hơn) — vừa hết bug, vừa giảm tải hơn nữa. Đã lưu thành memory `feedback_blazor_live_search.md` (pattern dùng lại cho trang Blazor search mới sau này). User xác nhận "hoàn hảo" sau bản sửa cuối.
+- **Xem chi tiết:** thêm nút "Chi tiết" mở modal read-only cho cả 5 trang — Departments/Majors/Programs/AcademicTerms hiện thông tin cơ bản + dữ liệu liên quan có sẵn trong `*DetailDto` (VD Major hiện danh sách Program con, Program hiện danh sách môn trong curriculum); **Courses hiện danh sách môn tiên quyết** (đúng yêu cầu "đối với môn học thì chi tiết về môn tiên quyết") — tách biệt với modal "Tiên quyết" (dùng để thêm/xoá).
+- Verify: `dotnet build` sạch qua nhiều vòng sửa, verify route `200` qua `curl` sau mỗi lần build lại (phải `taskkill` process backend cũ trước khi build vì khoá DLL).
+- ⚠️ User đã tự click-test tìm kiếm (xác nhận "hoàn hảo") — nhưng **CRUD cơ bản + curriculum/prerequisite modal của 5 trang này chưa click-test tay** (chỉ verify HTML render qua `curl`).
+
+### 3.20 Blazor — Documents theo CourseOfferingId (2026-07-04)
+`Documents.razor` trước đó chỉ xem được tài liệu chung theo Môn học (`CourseId` scope). Thêm dropdown thứ 2 "Lớp học phần" (load theo `courseId` đã chọn) để xem tài liệu riêng theo `CourseOfferingId`.
+- Backend: thêm tham số `courseId` tùy chọn vào `CourseOfferingService.LayDanhSachAsync` (trailing, backward-compatible); thêm field `TermName` vào `CourseOfferingListDto` (chuyển từ `CourseOfferingDetailDto` lên base, xóa khai báo trùng) để dropdown phân biệt các lớp học phần cùng môn khác kỳ/giảng viên.
+- Đã tạo sẵn 1 tài liệu test qua API (`lecturer01` upload vào offering `IT001_HK1_2024`, id=4) để user có dữ liệu click-test ngay, không cần tự lên Flutter/API tạo trước.
+- User đã **click-test thành công qua trình duyệt thật**: chọn môn IT001 → chọn lớp `IT001_HK1_2024` → bảng đổi đúng sang tài liệu riêng của lớp (người upload "Giảng viên Nguyễn Văn A") → tải xuống OK; chuyển lại "Tài liệu chung" → đúng tài liệu khác (người upload "Quản trị viên hệ thống", vì course-scope chỉ staff mới upload được) → tải xuống OK. **Tính năng đã verify đầy đủ, không chỉ qua `curl`.**
+
+### 3.21 Flutter — Documents UI (Phase 5 hoàn tất, 2026-07-04)
+Xây xong 3 tính năng còn thiếu của Phase 5 (Module 5.2, roadmap 0/3 → 3/3): danh sách/tải lên/tải xuống tài liệu.
+- **Package mới:** `file_picker` (chọn file upload), `path_provider` (lưu file tải về vào thư mục Downloads). **Quyết định đã hỏi user trước khi code:** chỉ lưu file vào Downloads, KHÔNG tự động mở bằng app mặc định (user chọn phương án đơn giản hơn, tránh thêm package mở-file đa nền tảng như `open_filex` — đỡ rủi ro tương thích Windows desktop + Android cùng lúc).
+- **File mới:** `lib/data/models/document.dart` (`DocumentItem`), `lib/data/services/document_service.dart` (`layDanhSach/upload/taiVe/voHieuHoa`, multipart qua `http.MultipartRequest` — `AuthenticatedClient` tự gắn Bearer token vì extends `http.BaseClient`), `lib/features/academic/screens/document_list_screen.dart` (1 màn dùng chung cho cả 2 scope `courseId`/`courseOfferingId`, có `assert` bắt buộc đúng 1 trong 2).
+- **Entry point:** nút icon "📁 Tài liệu" luôn hiện cho mọi role trong `course_offering_list_screen.dart` (tài liệu riêng theo lớp học phần) và `course_list_screen.dart` (tài liệu chung theo môn học) — theo đúng convention đã dùng cho nút điểm danh: chỉ gate quyền thô ở client (`coTheTaiLen` dựa vào role), quyền thật do server quyết định (403 nếu không đúng chủ lớp).
+- `flutter pub get` + `flutter analyze` sạch (không lỗi/warning mới, chỉ còn 2 warning cũ đã biết).
+- ⚠️ **CHƯA click-test trên thiết bị/app thật** (chọn file, tải lên, xem danh sách, tải xuống lưu vào Downloads) — chỉ mới verify tĩnh qua `flutter analyze`, cần user tự chạy app xác nhận.
+- Roadmap Phase 5 giờ **100% (16/16)**.
+
 ---
 
 ## 4. Sự thật cần sửa so với context cũ (đã kiểm chứng lại)
@@ -220,28 +251,28 @@ Vì `ProfileService.TaoProfileGVAsync/TaoProfileSVAsync` yêu cầu **User đã 
 
 ## 5. Đề xuất việc tiếp theo
 
-✅ **Cả 2 repo đã commit sạch, không còn gì dang dở chưa lưu** (xem mục 7 — commit hash cụ thể). Phiên mới có thể bắt đầu ngay từ trạng thái này.
+⚠️ **Chưa commit** — mục 3.19–3.21 (toàn bộ phiên này: Blazor CRUD 5 mục còn lại + tìm kiếm/chi tiết + fix bug kẹt "Đang tải" + Documents theo CourseOfferingId + Flutter Documents UI) **CHƯA được commit vào git** ở cả 2 repo. Phiên sau cần commit trước khi làm tiếp (hoặc hỏi user).
 
-📌 **Ý tưởng mới ghi nhận (chưa build):** Bulk import Excel để tạo hàng loạt tài khoản sinh viên (MSSV + ngành/lớp từ file, mật khẩu mặc định = ngày sinh, ép đổi mật khẩu lần đầu — tái dùng `MustChangePassword` đã có sẵn). Đã ghi thành feature "PLANNED" trong `ROADMAP_PROJECT.md` Module 1.4 (Completion 0/8) và §6.10 (UNDER CONSIDERATION) trong `Smart_University_Handover_EN.md` — đọc 2 chỗ đó để lấy chi tiết thiết kế trước khi bắt tay code.
+📌 **Ý tưởng cũ chưa build:** Bulk import Excel để tạo hàng loạt tài khoản sinh viên — đã ghi thành feature "PLANNED" trong `ROADMAP_PROJECT.md` Module 1.4 (Completion 0/8) và §6.10 trong `Smart_University_Handover_EN.md`.
 
-⚠️ **Việc ưu tiên #1 — bắt buộc làm trước mọi việc khác:** user cần **click-test bằng trình duyệt thật** 6 luồng CRUD Blazor admin vừa xây ở mục 3.18 (Khoa, Lớp hành chính, Lớp học phần, Giảng viên, Sinh viên, Tạo tài khoản nhân viên). Đây là điều **`curl` không thể verify được** — mọi thao tác Tạo/Sửa/Xoá là tương tác qua circuit SignalR (click button mở modal, điền form, bấm Lưu, xem `StatusDialogHost` báo kết quả, xem bảng tự làm mới). Nếu có bug, sửa ngay trước khi làm thêm gì mới — tránh lặp lại tình huống mục 3.14 (bug chỉ lộ ra khi test tay).
+⚠️ **Việc ưu tiên #1 — bắt buộc làm trước mọi việc khác:** user cần **click-test bằng trình duyệt thật**:
+1. CRUD cơ bản + modal curriculum (Programs)/prerequisite (Courses) của 5 trang mục 3.19 (Bộ môn/Ngành/CTĐT/Môn học/Học kỳ) — tìm kiếm+chi tiết đã tự test và xác nhận "hoàn hảo", nhưng Tạo/Sửa/Vô hiệu hóa/thêm-xoá môn trong curriculum/tiên quyết thì CHƯA.
+2. **Flutter Documents UI** (mục 3.21) — chạy app thật (`flutter run -d windows` hoặc điện thoại), thử chọn file tải lên (từ màn Danh mục môn học cho staff, hoặc từ 1 lớp học phần cho giảng viên), xem danh sách, tải xuống (kiểm tra file có xuất hiện đúng trong thư mục Downloads).
+
+Nếu có bug, sửa ngay trước khi làm thêm gì mới — tránh lặp lại tình huống mục 3.14 (bug chỉ lộ ra khi test tay).
 
 Sau khi xác nhận ổn, thứ tự ưu tiên tiếp theo:
 
-1. **Nhân rộng CRUD Blazor sang các mục còn lại** (Bộ môn, Ngành, Chương trình đào tạo, Môn học, Học kỳ) — đã có sẵn backend đủ CRUD (xác nhận ở mục 3.15/3.17), chỉ cần nối UI theo đúng pattern mục 3.18 (modal `.modal-overlay/.modal-card`, `StatusDialogService.ChayAsync`).
-2. **Documents theo `CourseOfferingId`** trong `Documents.razor` — hiện chỉ xem được tài liệu theo Môn học (catalog chung), chưa xem được theo từng Lớp học phần cụ thể.
-3. **Phase 5 — Documents UI bên Flutter** (backend đã xong từ lâu, xem mục 3.10 cho API contract) — độc lập với Blazor, có thể làm song song.
-4. **(Đợi điều kiện)** Phase 4 chỉ còn: test luồng quét QR + GPS thật trên điện thoại khi có máy (`attendance_session_screen.dart`/`qr_scan_screen.dart` đã build + wire xong, xem mục 3.11).
-5. Phase 6 (Notification) → Phase 7 (Analytics) → Phase 8 (AI Assistant) — chưa bắt đầu, để cuối theo đúng thứ tự phụ thuộc roadmap gốc.
+1. **(Đợi điều kiện)** Phase 4 chỉ còn: test luồng quét QR + GPS thật trên điện thoại khi có máy (`attendance_session_screen.dart`/`qr_scan_screen.dart` đã build + wire xong, xem mục 3.11).
+2. Phase 6 (Notification) → Phase 7 (Analytics) → Phase 8 (AI Assistant) — chưa bắt đầu, để cuối theo đúng thứ tự phụ thuộc roadmap gốc.
+3. Bulk import Excel (xem §6.10 handover) nếu muốn quay lại hoàn thiện Phase 1 trước khi qua Phase 6+.
 
 ### Gợi ý prompt để mở phiên mới
 
 ```
-Đọc CONTEXT.md (đặc biệt mục 3.18 và mục 5) và ROADMAP_PROJECT.md.
-Tôi vừa test tay 6 luồng CRUD Blazor admin (Khoa/Lớp hành chính/Lớp học phần/
-Giảng viên/Sinh viên/Tạo tài khoản nhân viên) — [ổn cả / lỗi ở chỗ X].
-Hãy [sửa lỗi / tiếp tục nhân rộng CRUD sang Bộ môn-Ngành-Chương trình-Môn học-Học kỳ
-theo đúng pattern đã dùng].
+Đọc CONTEXT.md (đặc biệt mục 3.19–3.21 và mục 5) và ROADMAP_PROJECT.md.
+Tôi vừa test tay [CRUD Blazor 5 mục còn lại / Flutter Documents UI] — [ổn cả / lỗi ở chỗ X].
+Hãy [sửa lỗi / commit lại 2 repo / bắt đầu Phase 6 Notification].
 ```
 
 ---
