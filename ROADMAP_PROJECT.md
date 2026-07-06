@@ -342,7 +342,10 @@ Completion: 0/8
 * [x] Store tokens with `flutter_secure_storage`
 * [x] Show a friendly error on invalid credentials
 
-Completion: 4/4
+Completion: 4/4 — **bug fix 2026-07-05, two rounds (see CONTEXT.md 3.23–3.24 for the full diagnosis):**
+1. *Same-session bounce:* on Windows desktop, `flutter_secure_storage`'s `write()` didn't reliably flush before an immediate `read()` (confirmed via debug logging — write reported success, read-back right after returned null), so every request right after login came back 401 and the user got bounced straight back to the login screen. Fixed with an in-memory cache layer in `TokenStorage` that serves reads from the just-written value. Also consolidated 6 separate ad-hoc `TokenStorage()` instantiations into one shared `tokenStorage` global (`lib/main.dart`) — good practice, though not the actual root cause (`FlutterSecureStorage` is `const`-canonicalized already).
+2. *Lost session across app restart:* the cache-only fix didn't survive closing the app (cache is per-process). Timed verification (checked the real value 3s/10s/30s after writing, bypassing the cache) showed the write to `flutter_secure_storage_windows` **never** persists — not a flush delay, a real failure. Tried upgrading `flutter_secure_storage_windows` (4.1.0 → 4.2.2) via `dependency_overrides`, but it requires `win32 ^6.0.1` while `file_picker` (used by Documents UI) only supports `win32 ^5.x`; the only `file_picker` version supporting `win32` 6 is an API-breaking beta. Reverted that path entirely. **Real fix:** bypass `flutter_secure_storage` on Windows desktop specifically — `TokenStorage` now uses a small hand-rolled JSON-file backend (`_WindowsFileTokenStore`, under `getApplicationSupportDirectory()`) chosen via conditional import (`_token_platform_io.dart` / `_token_platform_web.dart`, same pattern as `core/api_config.dart`). Trade-off documented in code: this file is NOT DPAPI/Credential-Manager-encrypted like real secure storage, only OS-user-folder-protected — acceptable for an internal/dev tool, not production-grade for end-user deployment.
+- `flutter analyze` clean after both rounds. ⚠️ Round 2 (file-backend fix) still needs the user to explicitly confirm the full close-app → reopen-app → still-logged-in cycle works — not yet confirmed unambiguously as of 2026-07-05.
 
 - **Objective:** Let users authenticate from the app.
 - **Expected outcome:** Valid login stores tokens; invalid login shows an error.
@@ -1013,7 +1016,7 @@ Completion: 2/2 — verified via API 2026-07-04: `PUT /api/documents/{id}/deacti
 * [x] Upload screen (lecturer/staff) — nút "Tải lên" (FAB) dùng `file_picker`, gọi `POST /api/documents` multipart; chỉ hiện khi `coTheTaiLen` (Lecturer/Admin/AcademicOffice)
 * [x] Open/download a document — tải bytes qua `GET /api/documents/{id}/download`, lưu ra thư mục Downloads (`path_provider`), không tự mở file (theo quyết định 2026-07-04 — đơn giản hơn, tránh thêm package mở-file đa nền tảng)
 
-Completion: 3/3 — built 2026-07-04, `flutter analyze` sạch. ⚠️ Chưa click-test trên thiết bị thật (chọn file, tải lên, xem danh sách, tải xuống) — cần xác nhận bằng tay.
+Completion: 3/3 — built 2026-07-04, `flutter analyze` sạch. ⚠️ Chưa click-test trên thiết bị thật (chọn file, tải lên, xem danh sách, tải xuống) — việc test này bị chặn hoàn toàn bởi bug đăng nhập trên Windows (xem ghi chú ở Module 1.5 "Login screen & secure token storage", đã fix 2026-07-05); giờ đăng nhập đã ổn định, cần user test lại từ đầu.
 
 - **Objective:** Manage documents from the app.
 - **Expected outcome:** Users browse, upload (if permitted), and open documents.

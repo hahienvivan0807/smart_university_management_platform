@@ -239,6 +239,65 @@ Xây xong 3 tính năng còn thiếu của Phase 5 (Module 5.2, roadmap 0/3 → 
 - ⚠️ **CHƯA click-test trên thiết bị/app thật** (chọn file, tải lên, xem danh sách, tải xuống lưu vào Downloads) — chỉ mới verify tĩnh qua `flutter analyze`, cần user tự chạy app xác nhận.
 - Roadmap Phase 5 giờ **100% (16/16)**.
 
+### 3.22 Blazor CRUD (mục 3.19) đã click-test thật qua Playwright — PASS toàn bộ (2026-07-05)
+Vì Claude không thể tự bấm chuột/gõ phím vào trình duyệt của user, đã tự cài Playwright + Chromium (`npm install playwright && npx playwright install chromium` trong thư mục scratchpad, không commit vào repo) và viết script điều khiển trình duyệt thật (đăng nhập qua form POST thật, click nút mở modal, điền input, submit, đọc lại DOM) — đây là tương tác SignalR circuit thật, khác hẳn `curl`.
+
+Kết quả: **Departments, Majors, Programs (+ thêm/xoá môn curriculum), Courses (+ chi tiết + thêm/xoá môn tiên quyết), AcademicTerms** — Tạo/Sửa/Vô hiệu hóa (trừ AcademicTerm không có Vô hiệu hóa) đều PASS, 0 console error trong cả 3 lượt chạy script. → **Mối lo "chưa click-test CRUD cơ bản" ở mục 3.19/5 (bản cũ) đã được giải quyết**, không cần user tự làm lại việc này nữa.
+
+Cũng đã thử tự động hoá test Flutter Documents UI (mục 3.21) qua Playwright bằng cách chạy `flutter run -d web-server` — **không thành công**: màn hình chọn vai trò render đúng lần đầu (0 lỗi) nhưng các lần sau bị trắng trơn dù chờ tới 18s (nghi do tài nguyên/trạng thái server dev khi nhiều trình duyệt tự động kết nối liên tục, không phải lỗi code — không có exception/request lỗi nào). App thật chạy trên Windows desktop/Android chứ không phải web, nên việc này cần user tự test tay như cũ.
+
+### 3.23 Bug nghiêm trọng — Flutter Windows: đăng nhập xong gọi API nào cũng bị đá về màn đăng nhập (2026-07-05)
+User tự chạy `flutter run -d windows` để test Documents UI (theo mục 3.22), phát hiện: đăng nhập được vào trang sinh viên, nhưng bấm "Đăng ký" 1 lớp học phần là **lập tức bị đá về màn chọn vai trò/đăng nhập** — và đăng nhập lại cũng bị đá ngay, **dù tài khoản nào (student/lecturer) cũng vậy**.
+
+**Quá trình chẩn đoán** (không đoán mò — mỗi bước đều verify bằng dữ liệu thật):
+1. Test `curl` lại đúng luồng login → `/api/auth/me` → enroll bằng token thật của `student01` — backend trả `200`/lỗi nghiệp vụ `400` bình thường, **không hề có 401**. → Loại trừ backend, lỗi nằm ở Flutter client.
+2. Thử tự động hoá lại bằng Playwright trên Flutter web — dính đúng vụ trắng màn hình ở mục 3.22, không dùng được để chẩn đoán.
+3. Chạy thẳng `flutter run -d windows` với log ra file, nhờ user tự thao tác lại trong lúc theo dõi log real-time (Claude không tự bấm được vào cửa sổ native Windows).
+4. Log lần 1 (thêm print tạm vào `AuthenticatedClient.send()`) cho thấy: **MỌI request đều `hasAuthHeader=false`** ngay từ request đầu tiên (`GET /api/auth/me`) — nghĩa là chưa từng gắn được Bearer token, không phải do request "Đăng ký" cụ thể gây ra (cảm giác "bấm Đăng ký mới bị đá" chỉ là trùng thời điểm — vòng lặp 401→refresh-fail→logout đã chạy ngầm ngay sau khi login xong, user chỉ tình cờ bấm Đăng ký đúng lúc nó xảy ra).
+5. Giả thuyết đầu (sai): 6 chỗ tạo `TokenStorage()` độc lập rải rác (`main.dart`, `auth_service.dart` default, `app_shell.dart`, `profile_screen.dart`, `splash_screen.dart`, `workspace_screen.dart`) → hợp nhất thành 1 biến `tokenStorage` global, truyền tay khắp nơi. **Không sửa được bug** — vì `FlutterSecureStorage(...)` được khai báo `const`, Dart tự canonical hóa nên dù bao nhiêu `TokenStorage()` cũng cùng trỏ về đúng 1 object, không phải vấn đề "nhiều instance".
+6. Thêm print trực tiếp vào `TokenStorage.saveTokens/readAccessToken/readRefreshToken` để in độ dài giá trị thật. Kết quả: `saveTokens done, accessToken.length=376` rồi **`immediate read-back after save: NULL`** — ghi xong, đọc lại NGAY bằng chính object đó (không có race giữa nhiều instance) vẫn ra null. → **Xác nhận đây là bug thật của package `flutter_secure_storage` trên Windows**: `write()` không throw lỗi nhưng chưa flush kịp để `read()` ngay sau đó thấy được.
+
+**Cách sửa:** thêm 1 lớp cache trong bộ nhớ (`_cachedAccessToken`/`_cachedRefreshToken`/`_cachedRolesRaw`) ngay trong `TokenStorage` (`lib/data/services/token_storage.dart`) — `saveTokens()` cập nhật cache trước khi ghi storage thật; mọi `readAccessToken()/readRefreshToken()/readRoles()` ưu tiên đọc cache, chỉ hỏi storage thật khi cache rỗng (trường hợp mới mở app, storage đã có đủ thời gian flush từ phiên trước). Né hẳn race của plugin mà không cần chờ fix từ thư viện. Đã xoá sạch mọi `print` debug tạm sau khi xác nhận nguyên nhân.
+
+- **Giữ lại thay đổi hợp nhất `TokenStorage()` ở bước 5** dù không phải nguyên nhân chính — vẫn là thực hành đúng (tránh tạo nhiều instance không cần thiết), không hại gì.
+- `flutter analyze` sạch sau mỗi lần sửa. User xác nhận bug đã hết sau bản sửa cache.
+- ⚠️ Bug này **chỉ xảy ra trên Windows desktop** (chưa rõ có ảnh hưởng Android/iOS hay không — nhiều khả năng KHÔNG, vì `EncryptedSharedPreferences`/Keychain trên các nền tảng đó không có kiểu race này) — nếu sau này build Android/iOS mà gặp lại triệu chứng tương tự, cache này vẫn vô hại và tiếp tục có tác dụng phòng ngừa.
+- Bài học giống mục 3.14: bug tầng auth/session **không thể phát hiện qua `curl`**, chỉ lộ ra khi chạy app thật. Lần này còn khó hơn vì cả Playwright (web) cũng không dùng được — phải chạy trực tiếp lên thiết bị thật (`flutter run -d windows`) + log file + nhờ user thao tác tay mới bắt được.
+
+### 3.24 Bug 3.23 chưa hết hẳn — mất phiên đăng nhập sau khi tắt/mở lại app (2026-07-05, cùng ngày)
+User phát hiện thêm: bug 3.23 (bị đá về login *trong* phiên chạy) đã hết sau bản vá cache, nhưng **tắt hẳn app rồi mở lại thì luôn bị bắt đăng nhập lại** — dù `login_screen.dart` có checkbox "Remember me" mặc định bật và `AuthService.login()` luôn gọi `saveTokens()` vô điều kiện (ý đồ thiết kế rõ ràng: phải nhớ phiên qua lần tắt/mở, đây **là bug chứ không phải cơ chế cố ý**).
+
+**Nguyên nhân:** bản vá cache ở mục 3.23 chỉ che được triệu chứng *trong cùng 1 tiến trình* — cache mất theo tiến trình khi tắt app, lúc mở lại `SplashScreen.hasSession()` phải đọc thật từ storage.
+
+**Verify việc ghi xuống đĩa có bao giờ thành công không** (không đoán mò): thêm code test tạm — sau `saveTokens()`, hẹn giờ đọc thẳng qua `_storage` gốc (bỏ qua cache) ở các mốc 3s/10s/30s. Kết quả cả 3 mốc: **`VẪN NULL`**. → Đây không phải race/chậm-flush như tưởng ở mục 3.23, mà là **ghi thất bại vĩnh viễn thật sự** của `flutter_secure_storage_windows` bản đang dùng (4.1.0) trên máy này.
+
+**Thử nâng cấp package (KHÔNG thành công — đã revert, không đi lại đường này nữa):**
+1. `flutter_secure_storage_windows` mới hơn (4.1.0 → 4.2.2) là dependency gián tiếp, bị khoá bởi ràng buộc của package chính `flutter_secure_storage: ^10.3.1`. Ép bằng `dependency_overrides: flutter_secure_storage_windows: ^4.2.2` → lỗi resolve: bản 4.2.2 cần `win32 ^6.0.1`, nhưng `file_picker` (đang dùng cho Documents UI, mục 3.21) chỉ hỗ trợ `win32 ^5.x`.
+2. Thử nâng `file_picker` lên bản hỗ trợ `win32 ^6` → chỉ có bản **beta** (`^12.0.0-beta.7`) làm được, nhưng bản beta này **đổi breaking API** (`FilePicker.platform` không còn tồn tại) → vỡ `document_list_screen.dart`. Không dùng bản beta cho 1 dependency cốt lõi.
+3. Thử ép cả `win32: ^6.0.1` qua override, giữ `file_picker` bản cũ ổn định → `flutter analyze` sạch (vì chỉ check tầng Dart), nhưng **build native thật sự vỡ**: code Windows-implementation của chính `file_picker` (`file_picker_windows.dart`) dùng thẳng API `win32` (`COINIT_APARTMENTTHREADED`, `FOS_PICKFOLDERS`, `COMObject`, `GUID.createInstance`...) đã đổi/xoá giữa `win32` 5.x→6.x → hàng chục lỗi biên dịch C++/Dart FFI. → **Đã revert sạch `pubspec.yaml` về trạng thái không có `dependency_overrides`, `file_picker` về lại `^8.1.7`.** Kết luận: nâng cấp package không khả thi lúc này (phải chờ `flutter_secure_storage` chính thức nới ràng buộc windows, hoặc `file_picker` ra bản stable hỗ trợ `win32` 6.x).
+
+**Fix thật (đã áp dụng):** bỏ hẳn `flutter_secure_storage` cho riêng Windows desktop, thay bằng 1 backend tự viết — file JSON cục bộ trong `getApplicationSupportDirectory()` (package `path_provider` đã có sẵn từ Phase 5 Documents). Chọn backend theo platform bằng **conditional import** (đúng pattern đã có sẵn ở `core/api_config.dart`/`_platform_io.dart`/`_platform_web.dart`):
+- `lib/data/services/_token_platform_io.dart` — `laWindowsDesktop() => Platform.isWindows`.
+- `lib/data/services/_token_platform_web.dart` — luôn `false` (web dùng `flutter_secure_storage` bình thường, implementation web riêng, không dính bug này).
+- `lib/data/services/token_storage.dart` viết lại: thêm class `_WindowsFileTokenStore` (đọc/ghi 1 file `auth_session.json`, cache in-memory + lazy load), `TokenStorage` chọn `_dungFileBackend` khi **không** bị inject storage giả (giữ hành vi cũ cho test) **và** đang chạy Windows desktop thật.
+- ⚠️ **Đánh đổi bảo mật đã cân nhắc và ghi rõ trong code:** file này KHÔNG mã hoá bằng DPAPI/Windows Credential Manager như secure storage thật — chỉ được bảo vệ ở mức "chỉ user hiện tại trên máy đọc được" (quyền thư mục AppData riêng của user). Chấp nhận được cho 1 app nội bộ chạy trên máy cá nhân/dev, **không phải mức bảo mật production-grade**. Nếu sau này deploy Windows cho nhiều người dùng cuối thật, cần quay lại vấn đề này (chờ fix từ thư viện, hoặc tự làm DPAPI qua FFI).
+- Cache in-memory ở mục 3.23 vẫn giữ nguyên phía trên (không hại gì, vẫn có lợi về hiệu năng + phòng ngừa chung).
+- `flutter analyze` sạch. ⚠️ **Đang test lại full chu trình** (đăng nhập → tắt hẳn app → mở lại → xem còn phiên không) khi phiên làm việc này tạm dừng — user báo "thấy nó thành công rồi" nhưng chưa xác nhận rõ ràng đây là app chạy được hay đúng luồng persist-qua-restart đã test xong; **cần user xác nhận lại rõ ràng ở phiên sau**.
+
+### 3.25 Dashboard Sinh viên — thiết kế lại "Bento Box / Super App" (2026-07-05)
+User yêu cầu đóng vai Senior Flutter Dev/UI-UX thiết kế lại hẳn Dashboard Sinh viên theo phong cách OneUni: Bento Box UI + Glassmorphism nhẹ, header động, Focus Card "lớp sắp diễn ra" có đếm ngược, Bento Grid bất đối xứng, animation staggered khi load + micro-interaction khi nhấn, empty state riêng, kiến trúc chia nhỏ widget + mock data qua model class.
+
+**File mới:**
+- `lib/data/models/dashboard_mock_data.dart` — `MotivationalQuote` (mock, chọn ổn định theo ngày), `DashboardFeatureConfig`/`BentoStatus` (cấu hình hiển thị, không chứa dữ liệu nghiệp vụ).
+- `lib/features/academic/screens/dashboard/` — `dashboard_header.dart` (lời chào theo buổi thật + avatar + chuông thông báo mock có pulse + thẻ SV thu nhỏ), `digital_student_card_sheet.dart` (bottom sheet QR — mã hoá `loginCode` THẬT qua `qr_flutter` đã có sẵn, ghi rõ đây là thẻ định danh KHÁC với QR điểm danh xoay vòng của giảng viên), `next_class_card.dart` (Focus Card — tái dùng + nâng cấp logic lấy TKB THẬT từ bản dashboard cũ, thêm đếm ngược sống bằng `Timer.periodic`, lọc đúng buổi chưa kết thúc thay vì buổi sớm nhất bất kể đã qua; không có lớp → `DashboardEmptyState` + quote mock), `bento_grid_menu.dart` (1 tile "featured" + lưới còn lại, dùng `GridView` chuẩn — không thêm `flutter_staggered_grid_view` theo đúng yêu cầu tránh dependency rủi ro), `feature_bento_card.dart` (gradient, `AnimatedScale` khi nhấn, badge "Sắp ra mắt" + Snackbar cho tính năng chưa có backend), `dashboard_empty_state.dart` (animation "thở" bằng `ScaleTransition` thuần Flutter, không dùng Lottie vì chưa có asset/muốn tránh thêm package).
+- `dashboard_screen.dart` viết lại: tách `_StudentDashboard` (layout Bento mới, `AnimationController` + `Interval` tạo hiệu ứng load lệch nhau từng section) và `_StaffDashboard` (giữ nguyên layout gradient-header cũ cho Giảng viên/Quản trị — ngoài phạm vi yêu cầu, không đụng vào để tránh phá vỡ trải nghiệm đã ổn định).
+
+**Đã tự sửa lại phân loại "Active" của user:** user liệt kê "Điểm số" là tính năng đã có, nhưng Phase 7 (Analytics) thực tế **chưa build (0%)** → xếp lại vào "Sắp ra mắt" cùng Học phí/Tin tức, để không đánh lừa người dùng. Chỉ 3 tile thật sự Active (Đăng ký học phần, Chương trình đào tạo, Danh mục môn học) điều hướng tới **màn hình có thật, đã build sẵn từ trước** — không phải placeholder.
+
+**Bug tự tìm ra khi verify:** build lần đầu bắn lỗi thật `RenderFlex overflowed by 0.609 pixels` tại `feature_bento_card.dart` (Column icon+label bị chật theo chiều dọc ở 1 số bề rộng màn hình cụ thể). Sửa bằng bọc `Flexible` quanh `Text` label + tăng `childAspectRatio` của grid từ 0.92 → 0.85 (chừa thêm chỗ theo chiều dọc). `flutter analyze` sạch, rebuild xác nhận hết overflow, app chạy ổn định (không còn "Lost connection to device" — lần crash trước đó là do chính thao tác PowerShell `SetForegroundWindow`/`GetWindowRect` của Claude can thiệp cửa sổ app, không phải lỗi code).
+
+⚠️ **Chưa được user click-test trực tiếp** (chỉ mới xác nhận app chạy được, chưa phản hồi cụ thể về animation/Bento layout/QR sheet) — cần user tự xem và cho nhận xét ở phiên sau.
+
 ---
 
 ## 4. Sự thật cần sửa so với context cũ (đã kiểm chứng lại)
@@ -251,15 +310,20 @@ Xây xong 3 tính năng còn thiếu của Phase 5 (Module 5.2, roadmap 0/3 → 
 
 ## 5. Đề xuất việc tiếp theo
 
-⚠️ **Chưa commit** — mục 3.19–3.21 (toàn bộ phiên này: Blazor CRUD 5 mục còn lại + tìm kiếm/chi tiết + fix bug kẹt "Đang tải" + Documents theo CourseOfferingId + Flutter Documents UI) **CHƯA được commit vào git** ở cả 2 repo. Phiên sau cần commit trước khi làm tiếp (hoặc hỏi user).
+⚠️ **Chưa commit** — toàn bộ mục 3.22–3.25 (Playwright test + fix `TokenStorage` 2 vòng (cache rồi file-backend Windows) + thiết kế lại Dashboard Sinh viên) **CHƯA được commit**. Mục 3.19–3.21 (Blazor CRUD 5 mục + Documents theo CourseOfferingId + Flutter Documents UI) trước đó **đã commit và push lên GitHub rồi** (xem mục 6). Đây là khối lượng thay đổi lớn nhất trong 1 phiên — commit sớm ở phiên sau, có thể tách 2 commit riêng (fix TokenStorage / redesign Dashboard) cho lịch sử rõ ràng hơn.
 
 📌 **Ý tưởng cũ chưa build:** Bulk import Excel để tạo hàng loạt tài khoản sinh viên — đã ghi thành feature "PLANNED" trong `ROADMAP_PROJECT.md` Module 1.4 (Completion 0/8) và §6.10 trong `Smart_University_Handover_EN.md`.
 
-⚠️ **Việc ưu tiên #1 — bắt buộc làm trước mọi việc khác:** user cần **click-test bằng trình duyệt thật**:
-1. CRUD cơ bản + modal curriculum (Programs)/prerequisite (Courses) của 5 trang mục 3.19 (Bộ môn/Ngành/CTĐT/Môn học/Học kỳ) — tìm kiếm+chi tiết đã tự test và xác nhận "hoàn hảo", nhưng Tạo/Sửa/Vô hiệu hóa/thêm-xoá môn trong curriculum/tiên quyết thì CHƯA.
-2. **Flutter Documents UI** (mục 3.21) — chạy app thật (`flutter run -d windows` hoặc điện thoại), thử chọn file tải lên (từ màn Danh mục môn học cho staff, hoặc từ 1 lớp học phần cho giảng viên), xem danh sách, tải xuống (kiểm tra file có xuất hiện đúng trong thư mục Downloads).
+✅ **Đã xong, không cần làm lại:**
+- CRUD cơ bản + curriculum/prerequisite của 5 trang Blazor mục 3.19 — đã click-test thật qua Playwright (mục 3.22), PASS toàn bộ.
+- Bug Flutter Windows "đăng nhập xong bị đá ra ngay *trong* phiên chạy" — đã fix bằng cache trong bộ nhớ (mục 3.23), **user đã xác nhận hết bug**.
+- Bug Flutter Windows "mất phiên đăng nhập sau khi tắt/mở lại app" — nguyên nhân sâu hơn (`flutter_secure_storage_windows` ghi thất bại vĩnh viễn, không phải chỉ chậm — đã verify bằng test 3s/10s/30s), đã thử nâng cấp package nhưng bế tắc (xung đột `win32` với `file_picker`, xem mục 3.24 để KHÔNG lặp lại đường này), **fix thật bằng backend file JSON riêng cho Windows** (mục 3.24) — `flutter analyze` sạch, nhưng ⚠️ **chưa có xác nhận rõ ràng từ user rằng chu trình tắt→mở lại→còn phiên đã thật sự OK** (mới chỉ nghe "thấy nó thành công rồi", mơ hồ giữa "app chạy được" và "persist qua restart đã đúng").
+- Dashboard Sinh viên đã thiết kế lại toàn bộ theo Bento Box UI (mục 3.25) — `flutter analyze` sạch, đã tự tìm+sửa 1 lỗi RenderFlex overflow thật, app chạy ổn định. ⚠️ **User chưa click-test/phản hồi cụ thể** (animation, Bento layout, QR sheet).
 
-Nếu có bug, sửa ngay trước khi làm thêm gì mới — tránh lặp lại tình huống mục 3.14 (bug chỉ lộ ra khi test tay).
+⚠️ **Việc ưu tiên #1 tiếp theo — cần user tự xác nhận rõ ràng bằng tay (không suy luận từ lời nói mơ hồ):**
+1. **Test lại đúng chu trình:** đăng nhập → **tắt hẳn cửa sổ app** (không phải hot-reload/restart trong `flutter run`) → mở lại → xác nhận vào thẳng Dashboard, KHÔNG bị bắt đăng nhập lại. Đây là điều kiện để coi bug 3.24 thật sự đã xong.
+2. **Xem + phản hồi Dashboard Bento mới** (mục 3.25) — animation staggered lúc load, hiệu ứng nhấn Bento card, mở thẻ SV điện tử xem QR, Focus Card đếm ngược.
+3. **Flutter Documents UI** (mục 3.21) — chọn file tải lên, xem danh sách, tải xuống — chưa từng test được vì bị 2 bug trên chặn suốt từ đầu.
 
 Sau khi xác nhận ổn, thứ tự ưu tiên tiếp theo:
 
@@ -270,21 +334,24 @@ Sau khi xác nhận ổn, thứ tự ưu tiên tiếp theo:
 ### Gợi ý prompt để mở phiên mới
 
 ```
-Đọc CONTEXT.md (đặc biệt mục 3.19–3.21 và mục 5) và ROADMAP_PROJECT.md.
-Tôi vừa test tay [CRUD Blazor 5 mục còn lại / Flutter Documents UI] — [ổn cả / lỗi ở chỗ X].
-Hãy [sửa lỗi / commit lại 2 repo / bắt đầu Phase 6 Notification].
+Đọc CONTEXT.md (đặc biệt mục 3.24–3.25 và mục 5) và ROADMAP_PROJECT.md.
+Tôi vừa test [chu trình tắt/mở lại app / Dashboard Bento mới / Flutter Documents UI] — [ổn cả / lỗi ở chỗ X].
+Hãy [sửa lỗi / commit lại repo Flutter / bắt đầu Phase 6 Notification].
 ```
 
 ---
 
-## 6. Trạng thái Git (đã commit, không còn gì dang dở)
+## 6. Trạng thái Git
 
-| Repo | Commit mới nhất | Nội dung |
+| Repo | Commit mới nhất đã push | Nội dung |
 |---|---|---|
-| Flutter (`Smart_University_Management_Platform`) | `440a6cf` | Phase 4 late/on-time attendance status + docs |
-| Backend (`SmartUniversity`, solution root) | `78bfcbe` | Phase 3/4/5 backend (Enrollment/Attendance/Documents) + toàn bộ Blazor admin portal (mục 3.12–3.18) |
+| Flutter (`Smart_University_Management_Platform`) | `5307446` (đã push lên `origin/main`) | Phase 5 Documents UI (mục 3.21) |
+| Backend (`SmartUniversity`, solution root) | `3684f7f` (đã push lên `origin/master`) | Blazor CRUD 5 mục còn lại + tìm kiếm + Documents theo CourseOfferingId (mục 3.19–3.20) |
 
-Cả 2 `git status` đều sạch tại thời điểm kết thúc phiên này. Backend trước đó có 1 backlog lớn chưa từng commit qua nhiều phiên (Attendance, Enrollment, Documents, Blazor scaffold) — **đã gộp vào 1 commit `78bfcbe`** vì tất cả đều liên quan và không tách nhỏ được hợp lý lúc này; phiên sau commit theo từng feature riêng nếu muốn lịch sử chi tiết hơn.
+⚠️ **CHƯA commit** (mục 3.23–3.25, phiên 2026-07-05) — khối lượng lớn, gợi ý tách 2 commit:
+- **Fix TokenStorage (mục 3.23–3.24):** `lib/data/services/token_storage.dart` (viết lại: cache + backend file JSON riêng cho Windows), `lib/data/services/_token_platform_io.dart` + `_token_platform_web.dart` (mới), `lib/main.dart` (biến `tokenStorage` global), và các file dùng lại nó: `login_screen.dart`, `app_shell.dart`, `profile_screen.dart`, `splash_screen.dart`, `workspace_screen.dart`, `change_password_screen.dart`. Đây là bug chặn hoàn toàn việc dùng app trên Windows desktop.
+- **Dashboard Bento redesign (mục 3.25):** `lib/data/models/dashboard_mock_data.dart` (mới), `lib/features/academic/screens/dashboard/` cả thư mục (mới), `lib/features/academic/screens/dashboard_screen.dart` (viết lại).
+- `pubspec.yaml`/`pubspec.lock` **không có gì cần commit thêm** — thử nâng cấp package ở mục 3.24 đã bị revert sạch về đúng trạng thái đã push (`file_picker ^8.1.7`, không có `dependency_overrides`).
 
 ---
 
