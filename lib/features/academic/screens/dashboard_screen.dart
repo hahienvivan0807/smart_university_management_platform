@@ -1,34 +1,31 @@
 import 'package:flutter/material.dart';
 
 import 'package:smart_university_management_platform/core/theme.dart';
-import 'package:smart_university_management_platform/data/models/academic_term.dart';
-import 'package:smart_university_management_platform/data/models/enrollment.dart';
-import 'package:smart_university_management_platform/data/services/academic_term_service.dart';
-import 'package:smart_university_management_platform/data/services/enrollment_service.dart';
+import 'package:smart_university_management_platform/data/models/dashboard_mock_data.dart';
 import 'package:smart_university_management_platform/main.dart';
-import 'academic_term_list_screen.dart';
 import 'admin_dashboard_screen.dart';
+import 'academic_term_list_screen.dart';
 import 'course_catalog_home_screen.dart';
 import 'course_offering_list_screen.dart';
+import 'dashboard/bento_grid_menu.dart';
+import 'dashboard/dashboard_header.dart';
+import 'dashboard/next_class_card.dart';
 import 'faculty_list_screen.dart';
-import 'my_timetable_screen.dart';
 import 'program_list_screen.dart';
 
 // ============================================================================
 // DASHBOARD SCREEN  —  tab đầu tiên, hiện ngay sau đăng nhập cho mọi role.
 //
-// Lấy tinh thần từ OneUni (header gradient + lưới danh mục nhiều màu +
-// thẻ "hôm nay") nhưng giữ bản sắc riêng: màu chủ đạo indigo/tím của app,
-// card bo góc mềm thay vì khối màu đặc, và giữ nguyên điều hướng Drawer
-// hiện có (app chạy cả desktop lẫn mobile — bottom nav kiểu OneUni chỉ
-// hợp mobile, không hợp màn desktop rộng).
+// Sinh viên (2026-07-05 — thiết kế lại theo tinh thần "Super App" kiểu
+// OneUni): Bento Box UI — header động (lời chào theo buổi + chuông thông
+// báo + thẻ SV điện tử) → Focus Card "lớp sắp diễn ra" (dữ liệu thật, đếm
+// ngược sống) → lưới Bento bất đối xứng, có ô "Sắp ra mắt" cho tính năng
+// chưa có backend (Điểm số/Học phí/Tin tức — xem CONTEXT.md, các phase này
+// chưa build). Load lần lượt (staggered fade+slide) khi vào màn.
 //
-//   • Header gradient: avatar + lời chào + vai trò.
-//   • Thẻ "Lịch học hôm nay" (chỉ Student — chỉ role này có API Timetable):
-//     lấy học kỳ hiện tại (so ngày hôm nay với StartDate/EndDate) rồi lọc
-//     GET /api/me/timetable theo đúng thứ hôm nay. Dữ liệu thật, không bịa.
-//   • Lưới "Danh mục" nhiều màu, tile cuối "Tất cả" mở danh sách tính năng
-//     ít dùng (thay cho khu "Xem thêm" thu gọn trước đây).
+// Giảng viên / Quản trị: giữ nguyên layout gradient-header + lưới danh mục
+// đơn giản của bản trước — 2 role này không nằm trong phạm vi yêu cầu thiết
+// kế lại lần này, đổi luôn có thể phá vỡ trải nghiệm đã ổn định của họ.
 // ============================================================================
 
 class DashboardScreen extends StatefulWidget {
@@ -44,8 +41,142 @@ class _DashboardScreenState extends State<DashboardScreen> {
   bool get _laGiangVien => session.roles.contains('Lecturer');
   bool get _laSinhVien => session.roles.contains('Student');
 
+  @override
+  Widget build(BuildContext context) {
+    if (_laSinhVien) return const _StudentDashboard();
+    return _StaffDashboard(laQuanTri: _laQuanTri, laGiangVien: _laGiangVien);
+  }
+}
+
+// ============================================================================
+// STUDENT DASHBOARD — Bento Box + staggered entrance animation
+// ============================================================================
+
+class _StudentDashboard extends StatefulWidget {
+  const _StudentDashboard();
+
+  @override
+  State<_StudentDashboard> createState() => _StudentDashboardState();
+}
+
+class _StudentDashboardState extends State<_StudentDashboard>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _controller = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 700),
+  )..forward();
+
+  /// Mỗi section xuất hiện lệch nhau 1 khoảng [Interval] — tạo cảm giác
+  /// "lướt lên hiện dần lần lượt" thay vì cả màn bật ra cùng lúc.
+  Widget _staggered(int thuTu, Widget child) {
+    final batDau = thuTu * 0.12;
+    final ket = (batDau + 0.5).clamp(0.0, 1.0);
+    final anim = CurvedAnimation(
+      parent: _controller,
+      curve: Interval(batDau, ket, curve: Curves.easeOutCubic),
+    );
+    return FadeTransition(
+      opacity: anim,
+      child: SlideTransition(
+        position: Tween<Offset>(
+          begin: const Offset(0, 0.08),
+          end: Offset.zero,
+        ).animate(anim),
+        child: child,
+      ),
+    );
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  List<DashboardFeatureConfig> _bentoItems(BuildContext context) => [
+        DashboardFeatureConfig(
+          label: 'Đăng ký học phần',
+          icon: Icons.edit_calendar_rounded,
+          gradient: const [Color(0xFF4F7CFF), Color(0xFF3A5FE0)],
+          status: BentoStatus.active,
+          featured: true,
+          onTap: (ctx) => Navigator.push(ctx, MaterialPageRoute(
+              builder: (_) => const AcademicTermListScreen(laManHinhDoc: true))),
+        ),
+        DashboardFeatureConfig(
+          label: 'Chương trình đào tạo',
+          icon: Icons.menu_book_rounded,
+          gradient: const [Color(0xFFA070E8), Color(0xFF7E4FD1)],
+          status: BentoStatus.active,
+          onTap: (ctx) => Navigator.push(ctx, MaterialPageRoute(
+              builder: (_) => const ProgramListScreen(laManHinhDoc: true))),
+        ),
+        DashboardFeatureConfig(
+          label: 'Danh mục môn học',
+          icon: Icons.auto_stories_rounded,
+          gradient: const [Color(0xFF2DB7A3), Color(0xFF1F9385)],
+          status: BentoStatus.active,
+          onTap: (ctx) => Navigator.push(ctx, MaterialPageRoute(
+              builder: (_) => const CourseCatalogHomeScreen())),
+        ),
+        const DashboardFeatureConfig(
+          label: 'Điểm số',
+          icon: Icons.bar_chart_rounded,
+          gradient: [Color(0xFFE8A33D), Color(0xFFD1832A)],
+          status: BentoStatus.comingSoon,
+        ),
+        const DashboardFeatureConfig(
+          label: 'Học phí',
+          icon: Icons.account_balance_wallet_rounded,
+          gradient: [Color(0xFFE5645B), Color(0xFFCC463D)],
+          status: BentoStatus.comingSoon,
+        ),
+        const DashboardFeatureConfig(
+          label: 'Tin tức',
+          icon: Icons.campaign_rounded,
+          gradient: [Color(0xFF5B8DEF), Color(0xFF3E6FD4)],
+          status: BentoStatus.comingSoon,
+        ),
+      ];
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: context.canvas,
+      body: SafeArea(
+        child: ListView(
+          padding: const EdgeInsets.all(AppSpacing.md),
+          children: [
+            _staggered(0, const DashboardHeader()),
+            const SizedBox(height: AppSpacing.lg),
+            _staggered(1, const NextClassCard()),
+            const SizedBox(height: AppSpacing.lg),
+            _staggered(
+              2,
+              Text('Chức năng', style: Theme.of(context).textTheme.titleMedium),
+            ),
+            const SizedBox(height: AppSpacing.sm),
+            _staggered(3, BentoGridMenu(items: _bentoItems(context))),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ============================================================================
+// STAFF DASHBOARD (Giảng viên / Quản trị) — layout đơn giản, giữ nguyên
+// từ bản trước đó, không nằm trong phạm vi thiết kế lại lần này.
+// ============================================================================
+
+class _StaffDashboard extends StatelessWidget {
+  const _StaffDashboard({required this.laQuanTri, required this.laGiangVien});
+
+  final bool laQuanTri;
+  final bool laGiangVien;
+
   List<_FeatureItem> get _tinhNangHayDung {
-    if (_laQuanTri) {
+    if (laQuanTri) {
       return [
         _FeatureItem(
           icon: Icons.school_rounded,
@@ -80,7 +211,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
         ),
       ];
     }
-    if (_laGiangVien) {
+    if (laGiangVien) {
       return [
         _FeatureItem(
           icon: Icons.class_rounded,
@@ -91,29 +222,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
         ),
       ];
     }
-    if (_laSinhVien) {
-      return [
-        _FeatureItem(
-          icon: Icons.class_rounded,
-          label: 'Học kỳ & Đăng ký môn',
-          color: AppColors.blue,
-          onTap: (ctx) => Navigator.push(ctx, MaterialPageRoute(
-              builder: (_) => const AcademicTermListScreen(laManHinhDoc: true))),
-        ),
-        _FeatureItem(
-          icon: Icons.menu_book_rounded,
-          label: 'Chương trình đào tạo',
-          color: AppColors.purple,
-          onTap: (ctx) => Navigator.push(ctx, MaterialPageRoute(
-              builder: (_) => const ProgramListScreen(laManHinhDoc: true))),
-        ),
-      ];
-    }
     return const [];
   }
 
   List<_FeatureItem> get _tinhNangItDung {
-    if (_laQuanTri) {
+    if (laQuanTri) {
       return [
         _FeatureItem(
           icon: Icons.admin_panel_settings_rounded,
@@ -144,8 +257,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 
-  // ── Build ─────────────────────────────────────────────────────────────────
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -155,10 +266,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
           padding: const EdgeInsets.all(AppSpacing.md),
           children: [
             const _GreetingHeader(),
-            if (_laSinhVien) ...[
-              const SizedBox(height: AppSpacing.md),
-              const _TodayScheduleCard(),
-            ],
             const SizedBox(height: AppSpacing.lg),
             Text('Danh mục', style: Theme.of(context).textTheme.titleMedium),
             const SizedBox(height: AppSpacing.sm),
@@ -173,7 +280,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
   }
 }
 
-// ── Header chào (gradient card — bản sắc riêng: indigo/tím thay vì xanh) ─────
+// ── Header chào (gradient card — dùng chung cho Giảng viên/Quản trị) ────────
 
 class _GreetingHeader extends StatelessWidget {
   const _GreetingHeader();
@@ -254,132 +361,7 @@ class _GreetingHeader extends StatelessWidget {
   }
 }
 
-// ── Thẻ "Lịch học hôm nay" (Student, dữ liệu thật từ Timetable API) ──────────
-
-class _TodayScheduleCard extends StatefulWidget {
-  const _TodayScheduleCard();
-
-  @override
-  State<_TodayScheduleCard> createState() => _TodayScheduleCardState();
-}
-
-class _TodayScheduleCardState extends State<_TodayScheduleCard> {
-  bool _dangTai = true;
-  TimetableEntry? _buoiHomNay;
-  int? _hocKyId;
-  String? _hocKyLabel;
-
-  @override
-  void initState() {
-    super.initState();
-    _taiLichHomNay();
-  }
-
-  Future<void> _taiLichHomNay() async {
-    final dichVuHK = AcademicTermService(authenticatedClient);
-    final ketQuaHK = await dichVuHK.layDanhSach();
-    final hocKyHienTai = ketQuaHK.data?.items.cast<AcademicTermItem?>().firstWhere(
-          (hk) {
-            final now = DateTime.now();
-            return hk != null &&
-                !now.isBefore(hk.startDate) &&
-                !now.isAfter(hk.endDate);
-          },
-          orElse: () => null,
-        );
-
-    if (hocKyHienTai == null) {
-      if (mounted) setState(() => _dangTai = false);
-      return;
-    }
-
-    final dichVuTKB = EnrollmentService(authenticatedClient);
-    final ketQuaTKB = await dichVuTKB.layThoiKhoaBieu(hocKyHienTai.academicTermId);
-
-    // Quy ước backend: 1=Chủ nhật, 2=Thứ 2, ..., 7=Thứ 7.
-    // DateTime.weekday: 1=Thứ 2, ..., 7=Chủ nhật.
-    final thuHomNay = (DateTime.now().weekday % 7) + 1;
-    final cacBuoiHomNay = (ketQuaTKB.data ?? [])
-        .where((e) => e.daXepLich && e.dayOfWeek == thuHomNay)
-        .toList()
-      ..sort((a, b) => a.startTime!.compareTo(b.startTime!));
-
-    if (!mounted) return;
-    setState(() {
-      _dangTai = false;
-      _buoiHomNay = cacBuoiHomNay.isNotEmpty ? cacBuoiHomNay.first : null;
-      _hocKyId = hocKyHienTai.academicTermId;
-      _hocKyLabel = hocKyHienTai.label;
-    });
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: (_hocKyId == null || _dangTai)
-          ? null
-          : () => Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (_) => MyTimetableScreen(
-                    termId: _hocKyId!,
-                    termLabel: _hocKyLabel ?? 'Học kỳ hiện tại',
-                  ),
-                ),
-              ),
-      child: Container(
-        decoration: BoxDecoration(
-          color: context.panel,
-          borderRadius: BorderRadius.circular(AppRadius.lg),
-          border: Border.all(color: context.border),
-        ),
-        padding: const EdgeInsets.all(AppSpacing.sm + 2),
-        child: Row(
-          children: [
-            Container(
-              width: 44,
-              height: 44,
-              decoration: BoxDecoration(
-                color: context.accentSoft,
-                borderRadius: BorderRadius.circular(AppRadius.md),
-              ),
-              child: const Icon(Icons.today_rounded,
-                  color: AppColors.accent, size: 22),
-            ),
-            const SizedBox(width: AppSpacing.sm),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text('Lịch học hôm nay',
-                      style: Theme.of(context).textTheme.labelLarge),
-                  const SizedBox(height: 2),
-                  Text(
-                    _dangTai
-                        ? 'Đang tải...'
-                        : _buoiHomNay == null
-                            ? 'Không có lớp học nào hôm nay.'
-                            : '${_buoiHomNay!.startTime!.substring(0, 5)}'
-                                '-${_buoiHomNay!.endTime!.substring(0, 5)} · '
-                                '${_buoiHomNay!.courseName}'
-                                '${_buoiHomNay!.room != null ? ' · ${_buoiHomNay!.room}' : ''}',
-                    style: Theme.of(context).textTheme.bodyMedium,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ],
-              ),
-            ),
-            if (!_dangTai && _hocKyId != null)
-              Icon(Icons.chevron_right_rounded, color: context.faint),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-// ── Lưới danh mục nhiều màu ───────────────────────────────────────────────────
+// ── Lưới danh mục nhiều màu (Giảng viên/Quản trị) ────────────────────────────
 
 class _FeatureGrid extends StatelessWidget {
   const _FeatureGrid({required this.items, required this.onTatCa});
@@ -524,7 +506,9 @@ class _AllFeaturesScreen extends StatelessWidget {
   }
 }
 
-// ── Placeholder "Sắp ra mắt" ──────────────────────────────────────────────────
+// ── Placeholder "Sắp ra mắt" (dùng cho các tính năng Giảng viên/Quản trị
+// chưa build — Bento Sinh viên dùng SnackBar trực tiếp thay vì màn riêng,
+// xem feature_bento_card.dart) ────────────────────────────────────────────
 
 class _ComingSoonScreen extends StatelessWidget {
   const _ComingSoonScreen({required this.label});
