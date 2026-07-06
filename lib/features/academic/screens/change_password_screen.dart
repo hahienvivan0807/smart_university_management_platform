@@ -18,7 +18,7 @@ class ChangePasswordScreen extends StatefulWidget {
 }
 
 class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
-  final _dichVu = AuthService(client: authenticatedClient);
+  final _dichVu = AuthService(client: authenticatedClient, storage: tokenStorage);
 
   final _hienTaiCtrl = TextEditingController();
   final _moiCtrl = TextEditingController();

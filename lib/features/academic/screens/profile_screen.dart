@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 
 import 'package:smart_university_management_platform/core/theme.dart';
-import 'package:smart_university_management_platform/data/services/token_storage.dart';
 import 'package:smart_university_management_platform/features/auth/models/app_role.dart';
 import 'package:smart_university_management_platform/features/auth/screens/role_selection_screen.dart';
 import 'package:smart_university_management_platform/main.dart';
@@ -16,7 +15,7 @@ class ProfileScreen extends StatelessWidget {
   const ProfileScreen({super.key});
 
   Future<void> _dangXuat(BuildContext context) async {
-    await TokenStorage().clear();
+    await tokenStorage.clear();
     session.logout();
     if (!context.mounted) return;
     Navigator.of(context).pushAndRemoveUntil(

@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 
 import 'package:smart_university_management_platform/core/theme.dart';
 import 'package:smart_university_management_platform/data/services/auth_service.dart';
-import 'package:smart_university_management_platform/data/services/token_storage.dart';
 import 'package:smart_university_management_platform/features/auth/models/app_role.dart';
 import 'package:smart_university_management_platform/features/auth/screens/role_selection_screen.dart';
 import 'package:smart_university_management_platform/main.dart';
@@ -82,7 +81,8 @@ class _AppShellState extends State<AppShell> {
     // Tải FullName/Email 1 lần cho màn Dashboard + Profile. Không cần
     // await trong initState (fire-and-forget) — AnimatedBuilder trong 2
     // màn đó tự rebuild khi session.me có dữ liệu.
-    session.taiThongTinCuaToi(AuthService(client: authenticatedClient));
+    session.taiThongTinCuaToi(
+        AuthService(client: authenticatedClient, storage: tokenStorage));
   }
 
   /// Xây danh sách tab dựa trên role thật (session.roles từ JWT).
@@ -150,7 +150,7 @@ class _AppShellState extends State<AppShell> {
     // 1. Đóng drawer
     Navigator.pop(context);
     // 2. Xóa token khỏi secure storage
-    await TokenStorage().clear();
+    await tokenStorage.clear();
     // 3. Xóa session state (session là global từ main.dart)
     session.logout();
     // 4. Về màn hình chọn role (xóa toàn bộ stack — không thể back lại)

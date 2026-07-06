@@ -32,7 +32,8 @@ class LoginScreen extends StatefulWidget {
 }
 
 class _LoginScreenState extends State<LoginScreen> {
-  late final AuthService _auth = widget.authService ?? AuthService();
+  late final AuthService _auth =
+      widget.authService ?? AuthService(storage: tokenStorage);
 
   final _loginCodeCtrl = TextEditingController();
   final _passwordCtrl = TextEditingController();

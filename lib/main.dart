@@ -22,9 +22,18 @@ final navigatorKey = GlobalKey<NavigatorState>();
 ///   session.isLoggedIn        — kiểm tra trạng thái
 final session = SessionContext();
 
+/// Instance TokenStorage DUY NHẤT dùng cho toàn app.
+///
+/// QUAN TRỌNG: không được tạo `TokenStorage()` rải rác ở nơi khác — trên
+/// Windows, nhiều instance `FlutterSecureStorage` độc lập không nhìn thấy
+/// dữ liệu của nhau (ghi bằng 1 instance, đọc bằng instance khác luôn ra
+/// null), gây bug "đăng nhập xong gọi API nào cũng 401 rồi bị đá về màn
+/// đăng nhập". Luôn dùng lại biến `tokenStorage` này.
+final tokenStorage = TokenStorage();
+
 /// HTTP client xác thực dùng chung — tự gắn token và tự refresh.
 final authenticatedClient = AuthenticatedClient(
-  storage: TokenStorage(),
+  storage: tokenStorage,
   onUnauthenticated: () {
     // Token hết hạn và refresh thất bại → xóa session + về login
     session.logout();

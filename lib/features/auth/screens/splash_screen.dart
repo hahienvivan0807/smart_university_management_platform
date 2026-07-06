@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 
 import 'package:smart_university_management_platform/core/theme.dart';
-import 'package:smart_university_management_platform/data/services/token_storage.dart';
 import 'package:smart_university_management_platform/features/academic/app_shell.dart';
 import 'package:smart_university_management_platform/features/auth/models/app_role.dart';
 import 'package:smart_university_management_platform/features/auth/screens/role_picker_screen.dart';
@@ -62,8 +61,10 @@ class _SplashScreenState extends State<SplashScreen>
     if (!mounted) return;
 
     // Bước 3: hỏi storage — user đã đăng nhập chưa?
-    final storage = TokenStorage();
-    final hasSession = await storage.hasSession();
+    // Dùng đúng `tokenStorage` (biến global từ main.dart) — KHÔNG tạo
+    // TokenStorage() mới ở đây, vì trên Windows các instance
+    // FlutterSecureStorage độc lập không nhìn thấy dữ liệu của nhau.
+    final hasSession = await tokenStorage.hasSession();
 
     // Bước 4: kiểm tra mounted lần 2 vì storage.hasSession() cũng là async
     if (!mounted) return;
@@ -76,7 +77,7 @@ class _SplashScreenState extends State<SplashScreen>
     }
 
     // Bước 6: có session → đọc roles đã lưu
-    final roles = await storage.readRoles();
+    final roles = await tokenStorage.readRoles();
     if (!mounted) return;
 
     // Bước 7: edge case — có token nhưng roles bị mất (xóa thủ công,

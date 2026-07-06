@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 
 import 'package:smart_university_management_platform/core/theme.dart';
-import 'package:smart_university_management_platform/data/services/token_storage.dart';
 import 'package:smart_university_management_platform/features/auth/models/app_role.dart';
 import 'package:smart_university_management_platform/features/auth/screens/role_selection_screen.dart';
+import 'package:smart_university_management_platform/main.dart';
 
 // ============================================================================
 // WORKSPACE SCREEN  —  placeholder for the role-specific app shell
@@ -20,7 +20,7 @@ class WorkspaceScreen extends StatelessWidget {
   final AppRole activeRole;
 
   Future<void> _logout(BuildContext context) async {
-    await TokenStorage().clear();
+    await tokenStorage.clear();
     if (!context.mounted) return;
     Navigator.of(context).pushAndRemoveUntil(
       MaterialPageRoute(builder: (_) => const RoleSelectionScreen()),
