@@ -673,6 +673,8 @@ Completion: 3/3
 > **Goal:** Students see the classes they're enrolled in for a term, with that data living locally. This is the join connecting students to offerings — every later module (attendance, analytics, AI) needs it. **No registration engine:** enrollments are imported. This is your first real student-facing product milestone.
 >
 > **⚠️ This entire phase description is OUTDATED.** Per `Smart_University_Handover_EN.md` §16, the import-based design was reversed — the platform now owns a self-service registration engine (queue + atomic DB capacity check + waitlist, v1 scope = capacity + duplicate protection + time gate only, no prerequisite/conflict checks). Rewrite this phase's features against §16 before starting Phase 3; do not build the import-endpoint tasks below as written.
+>
+> **⚠️ v1 scope note is ALSO now outdated (2026-07-07).** The registration engine has since gained credit-limit, schedule-conflict, and prerequisite checks, plus waitlist auto-promotion and pass/fail grade tracking — see `CONTEXT.md` §3.31–3.33 for what was actually built and verified. The checkboxes below still reflect the older v1-only scope; they have not been individually re-ticked to match.
 
 ## Module 3.0 — Resolve the Data-Source Question
 
@@ -1041,45 +1043,30 @@ Completion: 3/3 — built 2026-07-04, `flutter analyze` sạch. ⚠️ Chưa cli
 
 ### Feature: Notification design + migration
 
-* [ ] Define a `Notifications` table (recipient, type, payload, read flag, timestamp)
-* [ ] Decide notification types (schedule change, deadline, event, tuition)
-* [ ] Create and apply the migration
-* [ ] Verify schema in SSMS
+* [x] Define a `Notifications` table (recipient, type, payload, read flag, timestamp)
+* [x] Decide notification types (schedule change, deadline, event, tuition)
+* [x] Create and apply the migration
+* [x] Verify schema in SSMS
 
-Completion: 0/4
-
-- **Objective:** Model stored notifications.
-- **Expected outcome:** A `Notifications` table exists.
-- **Knowledge to learn:** Event/notification modeling, read-state tracking.
-- **Dependency:** Phase 1 (recipients/auth); later phases emit events.
+Completion: 4/4 — built 2026-07-06 as part of the Lecturer Leave Request feature (Module 6.3 below). `Notifications` table + migration (`Migrations/AddNotificationsTable.sql`) done; `Type` is a free-form string (not a fixed enum) so only one real type exists so far (`ClassSuspended`, covers "schedule change") — deadline/event/tuition have no source event yet, add as new `Type` values when those flows exist. Verified via `sqlcmd`/`INFORMATION_SCHEMA` query rather than the SSMS GUI directly — functionally equivalent.
 
 ## Module 6.1 — Create & Read
 
 ### Feature: Emit notifications from services
 
-* [ ] A reusable `NotificationService.Create(...)` method
-* [ ] Call it from at least one real event (e.g. offering change)
-* [ ] Store per-recipient rows
+* [x] A reusable `NotificationService.Create(...)` method
+* [x] Call it from at least one real event (e.g. offering change)
+* [x] Store per-recipient rows
 
-Completion: 0/3
-
-- **Objective:** Generate notifications from real events.
-- **Expected outcome:** Actions in other modules produce notification rows.
-- **Knowledge to learn:** Cross-cutting service usage, decoupling producers from delivery.
-- **Dependency:** Notifications table exists.
+Completion: 3/3 — `NotificationService.TaoHangLoatAsync(recipientUserIds, type, title, body, ...)` (batch-oriented; also covers the single-recipient case by passing a 1-item list). Real event: `LeaveRequestService.DuyetAsync` (Module 6.3) calls it when a lecturer's leave request is approved, creating one row per enrolled student. Verified via API: approving a request creates the expected `Notifications` rows.
 
 ### Feature: Notification feed endpoints
 
-* [ ] `GET /api/me/notifications` (caller's own, paged)
-* [ ] `POST /api/me/notifications/{id}/read` (mark read)
-* [ ] Unread count endpoint
+* [x] `GET /api/me/notifications` (caller's own, paged)
+* [x] `POST /api/me/notifications/{id}/read` (mark read)
+* [x] Unread count endpoint
 
-Completion: 0/3
-
-- **Objective:** Let users read and manage notifications.
-- **Expected outcome:** Users fetch their feed and mark items read.
-- **Knowledge to learn:** Per-user scoping, read-state updates, pagination.
-- **Dependency:** Emit-notifications done.
+Completion: 3/3 — `NotificationsController`. All 3 verified via PowerShell (`Invoke-RestMethod`): feed returns the real row with correct title/body, mark-as-read flips `IsRead`, unread count drops to 0 afterward.
 
 ## Module 6.2 — Flutter & (Optional) Push
 
@@ -1089,7 +1076,7 @@ Completion: 0/3
 * [ ] Unread badge
 * [ ] Mark-as-read interaction
 
-Completion: 0/3
+Completion: 0/3 — backend feed endpoints (Module 6.1) are done and verified via API; no Flutter screen consumes them yet. Next real piece of work for this phase.
 
 - **Objective:** Surface notifications in the app.
 - **Expected outcome:** Users see and manage notifications.
@@ -1109,11 +1096,33 @@ Completion: 0/3
 - **Knowledge to learn:** Push messaging or polling strategies.
 - **Dependency:** Notification feed working.
 
+## Module 6.3 — Lecturer Leave Requests (not in the original phase plan; built 2026-07-06 to give Module 6.1 a real event)
+
+> Not part of the original 8-phase design — added ad hoc after a design discussion: a lecturer can request to suspend a class session (single day or a date range) for a specific `CourseOffering`; Admin/AcademicOffice (school-wide) or `DepartmentStaff` (scoped to the lecturer's own Faculty/Department) approve or reject it; approval fires the Module 6.1 notification to every enrolled student.
+
+### Feature: Leave request workflow (backend, Blazor, Flutter)
+
+* [x] `StaffProfiles` table — links a `DepartmentStaff` account to a Faculty/Department so approval can be scoped (previously missing: staff accounts had no department link at all)
+* [x] `LecturerLeaveRequests` table — `Status`: 1=Pending, 2=Approved, 3=Rejected, 4=Revoked
+* [x] `POST /api/leave-requests` — lecturer only, must own the `CourseOffering`, rejects overlapping Pending/Approved date ranges
+* [x] `PUT /api/leave-requests/{id}/revoke` — lecturer only, only while still Pending
+* [x] `PUT /api/leave-requests/{id}/approve` / `/reject` — Admin/AcademicOffice (any) or DepartmentStaff (same Faculty/Department as the lecturer only); approve triggers the Notification
+* [x] `GET /api/leave-requests/blocked-dates` and `/active-suspensions` — power the Flutter date-picker (greys out taken dates) and the "Tạm ngưng" red badge
+* [x] Blazor `LeaveRequests.razor` — approval queue for Admin/AcademicOffice/DepartmentStaff; required fixing `AdminAuthController` which previously only let Admin/AcademicOffice log into `/admin` at all (DepartmentStaff was locked out of the portal entirely)
+* [x] Flutter — "Xin nghỉ dạy" entry point + create form + history/revoke screen (`leave_request_screen.dart`) + red "Tạm ngưng" badge in `course_offering_list_screen.dart` and `my_timetable_screen.dart`
+
+Completion: 8/8 — backend fully verified via PowerShell/curl (creation, overlap rejection, both approval-scope cases, notification firing, revoke, revoked-request-cannot-be-approved, student-role correctly blocked); Blazor approval queue verified via `curl` with real cookies for both an in-scope and an out-of-scope `DepartmentStaff` account. Flutter side is `flutter analyze`-clean but **not yet click-tested by the user** — same category of manual verification this project always leaves for a real device/browser pass.
+
+- **Objective:** Give Module 6.1 ("call it from at least one real event") a genuine, useful trigger instead of a throwaway test event.
+- **Expected outcome:** A lecturer can request a class suspension; the right approver (scoped correctly) can act on it; approval notifies affected students immediately.
+- **Knowledge to learn:** Scoped authorization (comparing two different profile tables' Department/Faculty), optimistic concurrency vs. simple overlap checks, wiring a new feature's side effect into an already-built cross-cutting service.
+- **Dependency:** Module 6.1 (`NotificationService`); Phase 2 (`LecturerProfile`/`Department`/`Faculty`); Phase 3 (`Enrollments`, to know who to notify).
+
 ## Definition of Done — Phase 6
 
-* [ ] Notifications table exists; recipients and read-state modeled.
-* [ ] At least one real event emits notifications.
-* [ ] Users fetch their feed, see unread counts, and mark items read.
+* [x] Notifications table exists; recipients and read-state modeled.
+* [x] At least one real event emits notifications.
+* [x] Users fetch their feed, see unread counts, and mark items read.
 * [ ] Flutter shows the feed with unread state.
 * [ ] (Optional) A real-time/push channel is evaluated or implemented.
 
@@ -1294,10 +1303,10 @@ Completion: 0/3
 | Phase 3 — Enrollment & Timetable | 26 | 18 | 69% |
 | Phase 4 — Attendance | 32 | 31 | 97% |
 | Phase 5 — Documents | 16 | 16 | 100% |
-| Phase 6 — Notification | 16 | 0 | 0% |
+| Phase 6 — Notification | 24 | 18 | 75% |
 | Phase 7 — Analytics | 14 | 0 | 0% |
 | Phase 8 — AI Assistant | 17 | 0 | 0% |
-| **Project Total** | **280** | **191** | **68%** |
+| **Project Total** | **288** | **209** | **73%** |
 
 ## Overall Progress
 
@@ -1308,10 +1317,10 @@ Phase 2: 63%  (43/68)
 Phase 3: 69%  (18/26)
 Phase 4: 97%  (31/32)
 Phase 5: 100% (16/16)
-Phase 6: 0%   (0/16)
+Phase 6: 75%  (18/24) — backend + Blazor done (incl. ad-hoc Module 6.3 Leave Requests); Flutter notification feed UI still missing
 Phase 7: 0%   (0/14)
 Phase 8: 0%   (0/17)
-Project Total: 68%   (191/280)
+Project Total: 73%   (209/288)
 ```
 
 ## Milestones

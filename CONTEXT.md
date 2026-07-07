@@ -12,7 +12,7 @@
 
 Hệ thống đăng ký học phần theo tín chỉ (sinh viên tự đăng ký vào các `CourseOffering` do staff tạo sẵn).
 
-**Tiến độ tổng:** xem `ROADMAP_PROJECT.md` — hiện **68% (191/280 task)**. Phase 0-1 gần xong, Phase 2 63% (backend+Blazor CRUD nay đã phủ đủ cả 7 entity + curriculum/prerequisite, xem mục 3.19), Phase 3 69%, Phase 4 97% (gần như xong, chỉ thiếu click-test tay trên điện thoại thật), Phase 5 **100%** (backend + Blazor + Flutter UI đều xong, xem mục 3.19–3.21), Phase 6-8 chưa bắt đầu (0%).
+**Tiến độ tổng:** xem `ROADMAP_PROJECT.md` — con số % trong file đó **chưa cập nhật theo mục 3.31–3.36 dưới đây** (đăng ký học phần v2 + nhập kết quả + curriculum thật đã vượt xa scope v1 gốc của Phase 3, nhưng chưa tick lại checkbox). Phase 0-1 gần xong, Phase 2 63%+ (backend+Blazor CRUD phủ đủ cả 7 entity + curriculum/prerequisite + **60 môn học thật đã seed cho KTPM2023**, xem mục 3.19 + 3.35), Phase 3 giờ có **đăng ký học phần v2** (giới hạn tín chỉ/trùng giờ/tiên quyết/waitlist + trạng thái Đậu/Rớt, xem mục 3.31–3.33 — vượt hẳn scope v1 "capacity + duplicate + time gate only" ghi trong ROADMAP), Phase 4 97% (gần như xong, chỉ thiếu click-test tay trên điện thoại thật), Phase 5 **100%**, **Phase 6 vẫn 75%** (chỉ còn thiếu màn Flutter hiển thị feed thông báo, xem mục 3.29–3.30), Phase 7-8 chưa bắt đầu (0%).
 
 ---
 
@@ -26,7 +26,7 @@ Hệ thống đăng ký học phần theo tín chỉ (sinh viên tự đăng ký
 | Phase 3 — Enrollment & Timetable | 🟡 69% — đăng ký/hủy môn + Timetable đã xong; còn thiếu Lecturer timetable (backend chỉ cho Student), import-based module 3.1 đã lỗi thời (bỏ qua, không làm theo) |
 | Phase 4 — Attendance | 🟢 97% — backend + edge case (trùng/đóng lớp/không enroll) + trễ giờ đã verify qua API; 4 màn Flutter đã xây + `flutter analyze` sạch; **CHƯA test tay** trên điện thoại thật (máy dev không có camera) |
 | Phase 5 — Documents | ✅ 100% — backend + Blazor (theo Course lẫn CourseOffering) + Flutter UI (browse/upload/download) đều xong (mục 3.20–3.21); ⚠️ Flutter UI chưa click-test tay |
-| Phase 6 — Notification | ⬜ 0% |
+| Phase 6 — Notification | 🟢 75% — bảng + service + feed API xong, sự kiện thật đầu tiên = tính năng "Xin nghỉ dạy" (mục 3.29–3.30, ngoài roadmap gốc); còn thiếu màn Flutter hiển thị feed thông báo (Module 6.2) |
 | Phase 7 — Analytics | ⬜ 0% |
 | Phase 8 — AI Assistant | ⬜ 0% — cố tình để cuối, cần đọc dữ liệu từ Phase 5-7 |
 
@@ -298,6 +298,88 @@ User yêu cầu đóng vai Senior Flutter Dev/UI-UX thiết kế lại hẳn Das
 
 ⚠️ **Chưa được user click-test trực tiếp** (chỉ mới xác nhận app chạy được, chưa phản hồi cụ thể về animation/Bento layout/QR sheet) — cần user tự xem và cho nhận xét ở phiên sau.
 
+### 3.26 3 commit ở mục 3.23–3.25 đã được thực hiện (2026-07-06)
+Đã tách đúng 3 commit như đề xuất ở mục 5 (bản cũ): `ba5e212` (fix TokenStorage Windows), `26397c2` (Dashboard Bento Sinh viên), `941108d` (docs). **Local main hiện đang ahead origin/main 3 commit — CHƯA push.**
+
+### 3.27 Bug fix — sai cổng kết nối backend (2026-07-06)
+User báo app chạy được, đăng nhập xong nhưng vào "Học kỳ" báo "Không thể kết nối đến server". Nguyên nhân: `lib/core/api_config.dart` hard-code `_port = 5102`, trong khi backend thật lúc đó (chạy bằng `dotnet run` trơn, không `--urls`) dùng đúng default của `Properties/launchSettings.json` = `5149`. Phiên đăng nhập "qua" được vì khôi phục từ file token cục bộ (không cần gọi mạng), chỉ lộ ra khi có API call thật. **Đã sửa:** đổi `_port` thành `5149`.
+- ⚠️ **Phát hiện thêm khi soát lại mục 7 (Current Tech Setup):** tài liệu cũ ghi "LUÔN dùng lệnh `dotnet run --urls http://0.0.0.0:5102`" — tức từng có lý do chính đáng để cố định 5102 (bind `0.0.0.0` để Android emulator/điện thoại thật/LAN gọi được, khác với default `localhost`-only của launchSettings). Nếu backend chạy đúng theo tài liệu cũ (5102 + 0.0.0.0) thì bug này không xảy ra — bug chỉ lộ ra vì phiên đó chạy `dotnet run` trơn (theo default 5149) thay vì đúng lệnh đã ghi. **Đã cập nhật lại mục 7** để khớp 100% với thực tế hiện tại (5149) thay vì để 2 nơi mâu thuẫn nhau — xem mục 7 để biết cách bật `0.0.0.0` khi cần test trên emulator/điện thoại thật sau này.
+
+### 3.28 Bug fix — thiếu nút quay về ở "Danh mục môn học" khi mở từ Trang chủ (2026-07-06)
+`CourseCatalogHomeScreen` vốn chỉ thiết kế để nhúng trong tab `AppShell` (không tự có AppBar) — giống 4 màn đã sửa ở mục 3.6, nhưng màn này ra đời sau (mục 3.7) nên bị bỏ sót. Khi Dashboard `Navigator.push` màn này như 1 màn độc lập → không có nút back, phải tắt hẳn app. **Đã sửa:** thêm tham số `laManHinhDoc` (đúng pattern mục 3.6), cập nhật 2 điểm gọi trong `dashboard_screen.dart` truyền `laManHinhDoc: true`.
+
+### 3.29 Backend — Phase 6 Notification, Module 6.0 + 6.1 (2026-07-06)
+Xây hạ tầng thông báo: bảng `Notifications` (`Migrations/AddNotificationsTable.sql` — `RecipientUserId`, `Type`, `Title`, `Body`, `RelatedCourseOfferingId`, `IsRead`, `CreatedAtUtc`), `NotificationService.cs` (`TaoHangLoatAsync` — tạo hàng loạt cho nhiều người nhận cùng lúc 1 lần `SaveChanges`, `LayDanhSachAsync`/`DanhDauDaDocAsync`/`DemChuaDocAsync`), `NotificationsController.cs` (`GET /api/me/notifications`, `POST /api/me/notifications/{id}/read`, `GET /api/me/notifications/unread-count`). Đăng ký DI trong `Program.cs`.
+- `Type` là string tự do, không phải enum cố định — mới có đúng 1 loại thật (`ClassSuspended`, xem mục 3.30) vì chưa có sự kiện nguồn cho deadline/event/tuition; kiến trúc đã sẵn sàng mở rộng khi cần, không cần sửa schema.
+- Verify qua PowerShell: tạo thông báo thật (qua sự kiện Duyệt nghỉ ở mục 3.30) → SV nhận đúng nội dung → đánh dấu đã đọc → unread count về 0.
+- ⚠️ **Chưa có màn Flutter nào hiển thị feed thông báo** (Module 6.2) — mới chỉ test qua API.
+
+### 3.30 Backend + Blazor + Flutter — Tính năng "Xin nghỉ dạy" (Lecturer Leave Request, Module 6.3, 2026-07-06)
+Tính năng mới ngoài roadmap gốc, phát sinh từ thảo luận thiết kế: giảng viên xin tạm ngưng 1 buổi/khoảng ngày liên tiếp cho 1 lớp học phần cụ thể; Admin/AcademicOffice (toàn trường) hoặc DepartmentStaff (chỉ đúng Khoa/Bộ môn của giảng viên đó) duyệt/từ chối; Duyệt xong bắn `NotificationService` (mục 3.29) cho toàn bộ SV đang enroll lớp đó **ngay lập tức**.
+
+**Quyết định chốt với user trước khi code (nhiều vòng hỏi-đáp, xem lịch sử chat):**
+- Trạng thái phiếu: 1=Chờ duyệt, 2=Đã duyệt (khoá vĩnh viễn), 3=Từ chối (khoá), 4=Đã thu hồi (chỉ giảng viên tự làm được, chỉ khi còn Chờ duyệt — "coi như chưa từng gửi").
+- Ngày đã bị chiếm (Pending hoặc Approved) bị làm mờ trên date-picker khi tạo phiếu mới — chặn chồng lấn ngay từ UI, có thêm lớp kiểm tra phía backend làm lưới an toàn.
+- Badge "Tạm ngưng" chỉ hiện đúng ngày đang trong khoảng đã duyệt (không báo trước nhiều ngày) — Notification thì vẫn gửi ngay lúc Duyệt (2 việc khác mục đích, không mâu thuẫn).
+- Dialog xác nhận bắt buộc trước khi gửi phiếu (tăng tính "uy nghiêm", không phải muốn là được).
+
+**Lỗ hổng phát hiện + vá kèm:** `DepartmentStaff` trước đó **không hề gắn với Khoa/Bộ môn nào** (không có bảng nào lưu) → không thể lọc "duyệt đúng phạm vi". Thêm bảng `StaffProfiles` (`UserId`, `DepartmentId?`, `FacultyId?`, giống hệt pattern `LecturerProfiles`) + sửa `StaffAccounts.razor` thêm 2 dropdown Khoa/Bộ môn khi tạo tài khoản DepartmentStaff. Cũng phát hiện `AdminAuthController` (đăng nhập `/admin`) trước đó **chỉ cho Admin/AcademicOffice** — DepartmentStaff bị khoá khỏi cả cổng vào Blazor admin, dù có role đúng; đã sửa `vaiTroHopLe` thêm `"DepartmentStaff"`.
+
+**Backend:** bảng `LecturerLeaveRequests` (`Migrations/AddLecturerLeaveRequestsTable.sql`), `LeaveRequestService.cs` (Tạo/ThuHồi/Duyệt/TừChối/HàngChờ/LịchSửCủaTôi/NgàyĐãChiếm/TamNgungHomNay — hàm cuối gộp kiểm tra hàng loạt nhiều lớp học phần 1 lần gọi để FE hiện badge không bị N+1), `LeaveRequestsController.cs` (7 endpoint). Đã thêm luôn `GET/POST /api/profiles/staff/{userId}` vào `ProfilesController.cs`/`ProfileService.cs` cho nhất quán với Student/Lecturer profile.
+
+**Blazor:** `LeaveRequests.razor` (hàng chờ duyệt, modal Duyệt/Từ chối có ghi chú tuỳ chọn).
+
+**Flutter:** `leave_request.dart` (model) + `leave_request_service.dart` + `leave_request_screen.dart` (lịch sử phiếu theo đúng 1 lớp + FAB "Xin nghỉ dạy" mở dialog tạo — date-picker mờ ngày đã chiếm bằng `selectableDayPredicate`, dialog xác nhận lồng bên trong trước khi gọi API thật) + nút icon "Xin nghỉ dạy" và badge đỏ "Tạm ngưng" trong `course_offering_list_screen.dart` + badge đỏ tương tự trong `my_timetable_screen.dart`.
+
+**Verify (PowerShell/curl thật, không đoán mò):**
+- Giảng viên tạo phiếu cho đúng lớp mình phụ trách; bị chặn khi chồng ngày với phiếu Pending/Approved khác.
+- `staff_cntt01` (cùng khoa CNTT với giảng viên) thấy + duyệt được; `staff_attp01` (khác khoa) thấy **0 phiếu** trong hàng chờ và bị chặn khi cố duyệt thẳng bằng ID — đúng ở cả tầng API **và** tầng Blazor (test bằng cookie thật qua `curl`).
+- Duyệt → SV enroll nhận Notification ngay, đánh dấu đọc → unread count về 0.
+- Giảng viên thu hồi phiếu Pending → OK; duyệt phiếu đã thu hồi → bị chặn đúng thiết kế.
+- Sinh viên (sai role) gọi tạo phiếu → 403.
+- `flutter analyze` sạch (chỉ 6 issue cũ đã biết).
+
+⚠️ **Chưa click-test tay qua trình duyệt/app thật** cho cả Blazor lẫn Flutter — cùng giới hạn quen thuộc của dự án (SignalR/state tương tác không đo được bằng `curl`/phân tích tĩnh).
+
+### 3.31 Backend — Đăng ký học phần v2: giới hạn tín chỉ, trùng giờ, môn tiên quyết, waitlist (2026-07-07)
+Nâng cấp `EnrollmentService.DangKyAsync` từ v1 (chỉ check cửa sổ thời gian/trùng lặp/sĩ số) lên đủ 4 ràng buộc học vụ chuẩn VN, theo yêu cầu bàn bạc trước (xem `chuc_nang_can_giai_quyet.md`):
+- **Giới hạn tín chỉ/kỳ**: hằng số `MAX_CREDITS_PER_TERM = 24` trong `EnrollmentService.cs` (chưa động theo học lực — ghi chú rõ trong code để đổi sau).
+- **Trùng giờ học**: so `DayOfWeek`/`StartTime`/`EndTime` với các lớp đang học (Status=1) cùng kỳ.
+- **Môn tiên quyết**: tra `CoursePrerequisites` (đã có từ Phase 2), yêu cầu tiên quyết phải ở trạng thái Đậu (xem mục 3.32).
+- **Waitlist**: cột `Enrollment.WaitlistPosition` (có sẵn từ đầu, chưa hề dùng) nay được gán khi lớp đầy — `HuyDangKyAsync` tự đôn người đứng đầu hàng đợi lên chính thức khi có SV hủy, dồn lại thứ tự người còn lại.
+- **Mở rộng `Enrollment.Status`**: `1`=Đang học, `2`=Đang chờ (mới), `3`=Đã hủy, `4`=Đậu (mới), `5`=Rớt (mới) — pattern giống `AttendanceRecords.Status` đã dùng ở Phase 4 (mở rộng enum có sẵn, không thêm bảng/cột mới).
+- Thêm `GET /api/course-offerings?dangMoDangKy=true` (lọc server-side lớp đang trong cửa sổ đăng ký ngay bây giờ, bất kể kỳ nào) — nền tảng cho màn Flutter mới ở mục 3.33 (SV không cần tự chọn học kỳ trước).
+- **Verify qua API thật** (không đoán mò): đăng ký môn có tiên quyết chưa hoàn thành → bị chặn đúng thông báo; GV chấm Đậu → đăng ký lại được; đăng ký lớp đầy → đúng vào waitlist (`Status=2`, `WaitlistPosition=1`, `SeatsTaken` không tăng). ⚠️ Giới hạn tín chỉ, trùng giờ, và nhánh "đôn từ waitlist khi hủy" **chưa live-test được** — dữ liệu seed chỉ có 1 tài khoản SV (`student01`), không đủ để mô phỏng tình huống 2 người tranh 1 chỗ hay vượt trần tín chỉ.
+
+### 3.32 Backend + Blazor — Nhập kết quả học tập (Đậu/Rớt) + tính động tổng tín chỉ chương trình (2026-07-07)
+- `EnrollmentService.NhapKetQuaHangLoatAsync(offeringId, danhSach, callerId, isStaff)` — GV phụ trách (hoặc staff) nhập Đậu/Rớt cho nhiều SV cùng lúc trong 1 lớp học phần, set `Enrollment.Status = 4|5`. Endpoint `PUT /api/offerings/{offeringId}/enrollments/result`.
+- `GET /api/me/course-status` — trả trạng thái Đậu/Rớt/Đang học của SV theo **CourseId** (gộp mọi lần học lại qua các CourseOffering khác nhau, ưu tiên Đậu > Đang học > Đang chờ > Rớt nếu có nhiều lần học) — nguồn dữ liệu cho 3 trạng thái ở mục 3.33.
+- Blazor `CourseOfferings.razor` — thêm nút "Nhập kết quả" mở modal load roster thật, chọn Đậu/Rớt từng SV qua dropdown, lưu hàng loạt gọi thẳng `EnrollmentService` qua DI.
+- **`Program.TotalCredits` đổi từ lưu tĩnh sang tính động** = `SUM(ProgramCourses.Course.Credits)` — không còn nhập tay khi tạo/sửa chương trình (đã bỏ field khỏi `CreateProgramRequest`/`UpdateProgramRequest`, khỏi form Blazor lẫn Flutter). Cột DB cũ `Programs.TotalCredits` vẫn còn (không migration) nhưng không đọc/ghi nữa.
+- Verify qua API thật: thêm/gỡ môn khỏi chương trình → `totalCredits` tự đổi đúng `0→3→6→3→0` khớp từng thao tác. Nhập kết quả GV → `student01`/IT001 chuyển đúng sang trạng thái Đậu, biến mất khỏi danh sách "đang học". ⚠️ Modal Blazor "Nhập kết quả" **chưa click-test qua trình duyệt** (chỉ verify SSR render nút qua `curl`, cùng giới hạn quen thuộc của Blazor Server).
+
+### 3.33 Flutter — Màn "Đăng ký học phần" mới + 3 trạng thái Chương trình đào tạo/Danh mục môn học (2026-07-07)
+- **File mới `registration_screen.dart`** — thay thế hẳn luồng cũ (SV phải chọn học kỳ trước ở `AcademicTermListScreen`) bằng 1 màn duy nhất: gọi thẳng `dangMoDangKy=true` (mục 3.31), gom nhóm hiển thị theo học kỳ chỉ để dễ đọc, có thanh tìm kiếm lọc tức thời theo từng ký tự gõ (tên/mã môn/mã lớp), thẻ "Tín chỉ đã đăng ký X/24" có progress bar. Đăng ký xử lý đúng 2 kết quả: thành công (xanh) và vào waitlist (cam, hiện vị trí).
+- **`AcademicTermListScreen`/`ProgramListScreen`** — SV thuần túy (không kiêm Lecturer/Admin/AcademicOffice) giờ tự động chuyển thẳng sang `RegistrationScreen`/`ProgramDetailScreen` (chương trình của chính mình, suy ra qua `profiles/students/{id}→adminClassId→admin-classes/{id}→programId`) — không cần tự tìm trong danh sách toàn trường. Nhân viên/giảng viên giữ nguyên luồng duyệt cũ.
+- **`program_detail_screen.dart`/`course_list_screen.dart`** — mỗi môn hiện badge 3 trạng thái Đậu (xanh)/Rớt (đỏ)/Đang học/Đang chờ (cam), lấy từ `GET /api/me/course-status` (mục 3.32); `course_list_screen.dart` thêm hàng filter chip Tất cả/Chưa học/Đang học/Đậu/Rớt (chỉ hiện với SV).
+- **`my_enrollments_screen.dart`** — nhận `termId` optional (xem được tất cả học kỳ cùng lúc), thêm badge trạng thái, cho phép hủy cả khi đang trong hàng đợi ("Rời hàng chờ").
+- `flutter analyze` sạch. ⚠️ **Chưa click-test bằng app thật** (không có device/emulator trong môi trường dev của Claude) — cần user tự `flutter run` xác nhận cả 2 luồng.
+
+### 3.34 Flutter — Skeleton loading thay `CircularProgressIndicator` ở 18 màn (2026-07-07)
+File mới `lib/shared/widgets/skeleton.dart` — `Shimmer` (hiệu ứng quét sáng, 1 `AnimationController` dùng chung/màn thay vì animate từng ô), `SkeletonBox`, `SkeletonListTile` (khớp đúng shape "leading box 40x40 + 2 dòng chữ" mà hầu hết list screen dùng), `SkeletonListView` (tiện ích thay thẳng `Center(CircularProgressIndicator())`).
+- Đã thay ở 18 màn: academic_term_list, admin_class_list, attendance_history, course_catalog_home, course_list, course_offering_list, department_list, document_list, faculty_list, leave_request, major_list, my_enrollments, my_timetable, program_detail, program_list (2 chỗ), registration, roster, customize_quick_access.
+- **Giữ nguyên** spinner nhỏ trong nút submit form/upload — đó là phản hồi hành động, không phải loading nội dung, thay bằng skeleton sẽ ngược UX.
+- `flutter analyze` sạch. ⚠️ Chưa xem hiệu ứng thật trên app chạy — vài màn (my_timetable, customize_quick_access) dùng skeleton dạng list chung chung vì layout thật không phải list-tile chuẩn, có thể cần tinh chỉnh sau khi xem trực tiếp.
+
+### 3.35 Backend — Seed curriculum đầy đủ 60 môn/8 học kỳ cho KTPM2023 (2026-07-07)
+User cung cấp 4 ảnh chụp "Nội dung chương trình" (Năm 1-4) của 1 chương trình CNTT tham khảo — đã seed vào `DbSeeder.SeedCurriculumKtpmAsync` (idempotent, gắn vào `chuongTrinh` KTPM2023 có sẵn, tái dùng 3 môn đã seed trước đó IT002/003/004 thay vì tạo trùng).
+- Ảnh gốc **không có số tín chỉ** — đã ước lượng theo quy ước phổ biến VN (đa số 3TC, GDTC/GDQP thấp hơn, Đồ án/Khóa luận/Thực tập cao hơn). ⚠️ **Đây là số tự ước lượng, không phải số chính thức** — user cần tự rà lại.
+- Verify qua API thật: đúng 60 môn, đúng phân bổ 8/8/7/7/7/7/8/8 theo 8 kỳ, `totalCredits` tự tính ra 168 (nhờ mục 3.32) khớp tổng thủ công.
+- Môn đại cương/lý luận chính trị/ngoại ngữ (Anh văn, Triết học, GDTC...) gán `OwnerFacultyId=null` (không thuộc khoa nào cụ thể, đúng convention "Tất cả môn học" đã có từ mục 3.7); môn chuyên ngành phân về `boMonKTPM`/`boMonKHMT` theo nội dung.
+
+### 3.36 Bug fix — race `session.me` khiến "Chương trình đào tạo" báo "Không xác định được tài khoản hiện tại" (2026-07-07)
+`AppShell.initState()` gọi `session.taiThongTinCuaToi()` kiểu fire-and-forget (không `await`), chạy song song với `IndexedStack` dựng tất cả tab cùng lúc — `ProgramListScreen.initState()` (mục 3.33) đọc `session.me?.userId` ngay lập tức nên có thể vẫn null. **Đã sửa:** nếu `session.me` chưa có, tự gọi thẳng `GET /api/auth/me` (qua `AuthService`) thay vì phụ thuộc cache dễ race. `flutter analyze` sạch. ⚠️ Chưa click-test tay để xác nhận hết hẳn.
+
 ---
 
 ## 4. Sự thật cần sửa so với context cũ (đã kiểm chứng lại)
@@ -310,60 +392,82 @@ User yêu cầu đóng vai Senior Flutter Dev/UI-UX thiết kế lại hẳn Das
 
 ## 5. Đề xuất việc tiếp theo
 
-⚠️ **Chưa commit** — toàn bộ mục 3.22–3.25 (Playwright test + fix `TokenStorage` 2 vòng (cache rồi file-backend Windows) + thiết kế lại Dashboard Sinh viên) **CHƯA được commit**. Mục 3.19–3.21 (Blazor CRUD 5 mục + Documents theo CourseOfferingId + Flutter Documents UI) trước đó **đã commit và push lên GitHub rồi** (xem mục 6). Đây là khối lượng thay đổi lớn nhất trong 1 phiên — commit sớm ở phiên sau, có thể tách 2 commit riêng (fix TokenStorage / redesign Dashboard) cho lịch sử rõ ràng hơn.
-
-📌 **Ý tưởng cũ chưa build:** Bulk import Excel để tạo hàng loạt tài khoản sinh viên — đã ghi thành feature "PLANNED" trong `ROADMAP_PROJECT.md` Module 1.4 (Completion 0/8) và §6.10 trong `Smart_University_Handover_EN.md`.
-
 ✅ **Đã xong, không cần làm lại:**
 - CRUD cơ bản + curriculum/prerequisite của 5 trang Blazor mục 3.19 — đã click-test thật qua Playwright (mục 3.22), PASS toàn bộ.
-- Bug Flutter Windows "đăng nhập xong bị đá ra ngay *trong* phiên chạy" — đã fix bằng cache trong bộ nhớ (mục 3.23), **user đã xác nhận hết bug**.
-- Bug Flutter Windows "mất phiên đăng nhập sau khi tắt/mở lại app" — nguyên nhân sâu hơn (`flutter_secure_storage_windows` ghi thất bại vĩnh viễn, không phải chỉ chậm — đã verify bằng test 3s/10s/30s), đã thử nâng cấp package nhưng bế tắc (xung đột `win32` với `file_picker`, xem mục 3.24 để KHÔNG lặp lại đường này), **fix thật bằng backend file JSON riêng cho Windows** (mục 3.24) — `flutter analyze` sạch, nhưng ⚠️ **chưa có xác nhận rõ ràng từ user rằng chu trình tắt→mở lại→còn phiên đã thật sự OK** (mới chỉ nghe "thấy nó thành công rồi", mơ hồ giữa "app chạy được" và "persist qua restart đã đúng").
-- Dashboard Sinh viên đã thiết kế lại toàn bộ theo Bento Box UI (mục 3.25) — `flutter analyze` sạch, đã tự tìm+sửa 1 lỗi RenderFlex overflow thật, app chạy ổn định. ⚠️ **User chưa click-test/phản hồi cụ thể** (animation, Bento layout, QR sheet).
+- Cả 2 bug Flutter Windows (đá ra ngay trong phiên / mất phiên sau khi tắt-mở app) — đã fix, user đã xác nhận hết bug (mục 3.23–3.24).
+- Backend + Blazor cho tính năng "Xin nghỉ dạy" + Notification (mục 3.29–3.30) — **đã verify đầy đủ qua PowerShell/curl thật** — không cần lặp lại các test này.
+- Bug sai cổng backend (mục 3.27), nút quay về thiếu ở Danh mục môn học (mục 3.28), race `session.me` ở Chương trình đào tạo (mục 3.36) — đã sửa.
+- Đăng ký học phần v2 + nhập kết quả Đậu/Rớt + tính động tổng tín chỉ (mục 3.31–3.32) — **đã verify qua API thật** (trừ nhánh cần ≥2 tài khoản SV để test, xem ⚠️ trong mục 3.31).
 
-⚠️ **Việc ưu tiên #1 tiếp theo — cần user tự xác nhận rõ ràng bằng tay (không suy luận từ lời nói mơ hồ):**
-1. **Test lại đúng chu trình:** đăng nhập → **tắt hẳn cửa sổ app** (không phải hot-reload/restart trong `flutter run`) → mở lại → xác nhận vào thẳng Dashboard, KHÔNG bị bắt đăng nhập lại. Đây là điều kiện để coi bug 3.24 thật sự đã xong.
-2. **Xem + phản hồi Dashboard Bento mới** (mục 3.25) — animation staggered lúc load, hiệu ứng nhấn Bento card, mở thẻ SV điện tử xem QR, Focus Card đếm ngược.
-3. **Flutter Documents UI** (mục 3.21) — chọn file tải lên, xem danh sách, tải xuống — chưa từng test được vì bị 2 bug trên chặn suốt từ đầu.
+⚠️ **Đã commit + push** (phiên 2026-07-07) — xem mục 6 để biết chi tiết từng commit.
 
-Sau khi xác nhận ổn, thứ tự ưu tiên tiếp theo:
+⚠️ **Việc ưu tiên #1 tiếp theo — click-test tay (không đo được bằng công cụ tĩnh), theo thứ tự nên làm:**
+1. **Đăng ký học phần mới** (`registration_screen.dart`, mục 3.33) — đăng nhập `student01`, xem màn không còn bắt chọn kỳ, thử tìm kiếm lọc tức thời, thử đăng ký 1 lớp đầy chỗ xem có vào waitlist đúng không.
+2. **Nhập kết quả Blazor** (`/admin/course-offerings` → nút "Nhập kết quả", mục 3.32) — đăng nhập `admin01`, mở modal, chọn Đậu/Rớt cho SV, lưu, xem `StatusDialogHost` + bảng roster cập nhật đúng.
+3. **3 trạng thái Chương trình đào tạo/Danh mục môn học** (mục 3.33) — sau khi chấm Đậu/Rớt ở bước 2, xem badge có hiện đúng màu ở 2 màn này không.
+4. **Skeleton loading** (mục 3.34) — lướt qua vài màn list xem hiệu ứng shimmer có mượt, có khớp shape thật không (đặc biệt `my_timetable_screen`/`customize_quick_access_screen` dùng skeleton chung chung).
+5. Backlog cũ chưa test: Blazor "Yêu cầu nghỉ dạy" (`staff_cntt01`/`Test@123`), Flutter "Xin nghỉ dạy" (`lecturer01`), badge "Tạm ngưng", Dashboard Bento Sinh viên, Documents UI.
 
-1. **(Đợi điều kiện)** Phase 4 chỉ còn: test luồng quét QR + GPS thật trên điện thoại khi có máy (`attendance_session_screen.dart`/`qr_scan_screen.dart` đã build + wire xong, xem mục 3.11).
-2. Phase 6 (Notification) → Phase 7 (Analytics) → Phase 8 (AI Assistant) — chưa bắt đầu, để cuối theo đúng thứ tự phụ thuộc roadmap gốc.
-3. Bulk import Excel (xem §6.10 handover) nếu muốn quay lại hoàn thiện Phase 1 trước khi qua Phase 6+.
+Sau khi xác nhận ổn (hoặc báo lỗi để sửa), thứ tự ưu tiên tiếp theo:
+
+1. Xây màn Flutter hiển thị feed thông báo (Module 6.2 — `GET/POST /api/me/notifications*` đã sẵn, chỉ còn thiếu UI) — hoàn tất nốt Phase 6.
+2. Rà lại số tín chỉ ước lượng ở curriculum KTPM2023 (mục 3.35) — hiện là số tự đoán, không phải chính thức.
+3. Đặt lại `MAX_CREDITS_PER_TERM` (mục 3.31) thành logic động theo học lực nếu cần đúng thực tế hơn (hiện đang hằng số 24 cho mọi SV).
+4. **(Đợi điều kiện)** Phase 4 chỉ còn: test luồng quét QR + GPS thật trên điện thoại khi có máy.
+5. Phase 7 (Analytics) → Phase 8 (AI Assistant) theo đúng thứ tự phụ thuộc roadmap gốc — Phase 7 giờ có sẵn đà từ dữ liệu Đậu/Rớt vừa xây (mục 3.32) để làm "kết quả học tập" analytics.
+6. Bulk import Excel (xem §6.10 handover) nếu muốn quay lại hoàn thiện Phase 1 trước khi qua Phase 7+.
+7. Cập nhật lại `ROADMAP_PROJECT.md` cho khớp thực tế Phase 2/3 (checkbox + %) — hiện chỉ mới sửa mô tả tổng quan ở mục 1 file này, chưa tick lại từng task trong ROADMAP.
 
 ### Gợi ý prompt để mở phiên mới
 
 ```
-Đọc CONTEXT.md (đặc biệt mục 3.24–3.25 và mục 5) và ROADMAP_PROJECT.md.
-Tôi vừa test [chu trình tắt/mở lại app / Dashboard Bento mới / Flutter Documents UI] — [ổn cả / lỗi ở chỗ X].
-Hãy [sửa lỗi / commit lại repo Flutter / bắt đầu Phase 6 Notification].
+Đọc CONTEXT.md (đặc biệt mục 3.31–3.36 và mục 5) và ROADMAP_PROJECT.md.
+Tôi vừa test [đăng ký học phần mới / nhập kết quả Blazor / 3 trạng thái chương trình / skeleton / ...] — [ổn cả / lỗi ở chỗ X].
+Hãy [sửa lỗi / xây màn Flutter hiển thị thông báo (Module 6.2) / cập nhật ROADMAP_PROJECT.md].
 ```
 
 ---
 
 ## 6. Trạng thái Git
 
-| Repo | Commit mới nhất đã push | Nội dung |
-|---|---|---|
-| Flutter (`Smart_University_Management_Platform`) | `5307446` (đã push lên `origin/main`) | Phase 5 Documents UI (mục 3.21) |
-| Backend (`SmartUniversity`, solution root) | `3684f7f` (đã push lên `origin/master`) | Blazor CRUD 5 mục còn lại + tìm kiếm + Documents theo CourseOfferingId (mục 3.19–3.20) |
+**Cập nhật 2026-07-07 — đã commit + push sạch cả 2 repo.** Toàn bộ nợ commit cũ (mục 3.27–3.30) và việc mới của phiên này (mục 3.31–3.36) đã được tách commit theo tính năng và đẩy lên remote.
 
-⚠️ **CHƯA commit** (mục 3.23–3.25, phiên 2026-07-05) — khối lượng lớn, gợi ý tách 2 commit:
-- **Fix TokenStorage (mục 3.23–3.24):** `lib/data/services/token_storage.dart` (viết lại: cache + backend file JSON riêng cho Windows), `lib/data/services/_token_platform_io.dart` + `_token_platform_web.dart` (mới), `lib/main.dart` (biến `tokenStorage` global), và các file dùng lại nó: `login_screen.dart`, `app_shell.dart`, `profile_screen.dart`, `splash_screen.dart`, `workspace_screen.dart`, `change_password_screen.dart`. Đây là bug chặn hoàn toàn việc dùng app trên Windows desktop.
-- **Dashboard Bento redesign (mục 3.25):** `lib/data/models/dashboard_mock_data.dart` (mới), `lib/features/academic/screens/dashboard/` cả thư mục (mới), `lib/features/academic/screens/dashboard_screen.dart` (viết lại).
-- `pubspec.yaml`/`pubspec.lock` **không có gì cần commit thêm** — thử nâng cấp package ở mục 3.24 đã bị revert sạch về đúng trạng thái đã push (`file_picker ^8.1.7`, không có `dependency_overrides`).
+| Repo | Commit mới nhất | Đã push? |
+|---|---|---|
+| Flutter (`Smart_University_Management_Platform`) | `0cbf30e` | ✅ Đã push lên `origin/main` |
+| Backend (`SmartUniversity`, solution root) | `065f791` | ✅ Đã push lên `origin/master` |
+
+**Backend — 2 commit mới:**
+- `e7c4019` feat: Lecturer Leave Requests + Notification system (Module 6.3 + 6.1) — toàn bộ nợ mục 3.29–3.30.
+- `065f791` feat: self-service registration engine v2 + grade tracking + curriculum seed — mục 3.31–3.32, 3.35.
+
+**Flutter — 3 commit mới:**
+- `06a8b80` feat: Lecturer Leave Requests UI + "class suspended" badges — nợ mục 3.30.
+- `7cc2740` feat: redesign Lecturer/Staff Dashboard quick-access + Bento polish — phần dở của Dashboard Bento (mục 3.25) mà bản CONTEXT.md trước cố ý chưa ghi.
+- `0cbf30e` feat: registration engine v2 UI, pass/fail status, skeleton loading — mục 3.33–3.34 + 3.36, cộng fix port mục 3.27 (`api_config.dart` đụng cả 2 việc trong cùng 1 file, xem giới hạn tách commit bên dưới) + `chuc_nang_can_giai_quyet.md`.
+- `(docs commit tiếp theo)` — cập nhật `CONTEXT.md`/`ROADMAP_PROJECT.md` cho khớp thực tế (chính là commit đang tạo ra file này).
+
+⚠️ **Giới hạn khi tách commit:** git không hỗ trợ tách theo dòng (hunk) qua công cụ tự động dùng trong phiên này (không dùng được `git add -p`/`-i`), nên vài file bị 2 tính năng cùng đụng vào trong cùng 1 lần (VD `CourseOfferingService.cs`/`course_offering_list_screen.dart` vừa có phần Leave Request vừa có phần đăng ký học phần v2) chỉ được gộp trọn vào 1 commit thay vì tách đúng hunk — chấp nhận được, không ảnh hưởng tính đúng của code, chỉ là lịch sử git không hoàn hảo 100%.
+
+⚠️ **2 file cố ý KHÔNG commit** (giữ nguyên trong working tree, để dành cho sau): `lib/main.dart` (chỉ có 1 dòng comment ghi chú lệnh chạy backend, không phải code — theo đúng ghi chú cũ), `devtools_options.yaml` (file cấu hình local của Flutter DevTools, tự sinh, không phải code dự án).
 
 ---
 
 ## 7. Current Tech Setup
 
-### Backend run command (LUÔN dùng lệnh này)
+### Backend run command
+Port thật hiện tại là **5149** (default của `Properties/launchSettings.json`, KHỚP với `lib/core/api_config.dart`'s `_port` — 2 nơi này phải luôn giống nhau, xem bug mục 3.27 nếu lệch).
+
+Test trên Windows desktop (`flutter run -d windows`, cùng máy với backend) — chạy trơn là đủ:
 ```powershell
-dotnet run --urls "http://0.0.0.0:5102" --project "C:\Users\littl\source\repos\SmartUniversity\SmartUniversity"
+dotnet run --project "C:\Users\littl\source\repos\SmartUniversity\SmartUniversity"
 ```
-- HTTP (không phải HTTPS) — Android/Windows dev không cần cert
-- `0.0.0.0` — cho phép cả emulator/điện thoại/LAN kết nối
-- Port 5102
+
+Nếu sau này cần test trên **Android emulator/điện thoại thật/máy khác trong LAN**, phải thêm `--urls` để bind `0.0.0.0` (mặc định chỉ bind `localhost`, emulator/điện thoại không gọi vào được):
+```powershell
+dotnet run --urls "http://0.0.0.0:5149" --project "C:\Users\littl\source\repos\SmartUniversity\SmartUniversity"
+```
+Cả 2 cách đều dùng port **5149** — không cần đổi gì bên `api_config.dart` khi chuyển qua lại.
 
 ### Chạy Flutter trên Windows desktop (đang dùng để test)
 ```powershell
@@ -373,12 +477,12 @@ flutter run -d windows
 
 ### Kiểm tra backend đang chạy
 ```powershell
-netstat -ano | findstr :5102
+netstat -ano | findstr :5149
 ```
 
 ### API docs (Scalar)
 ```
-http://localhost:5102/scalar/v1
+http://localhost:5149/scalar/v1
 ```
 
 ### Test accounts (ĐÃ SỬA — xem mục 4)
