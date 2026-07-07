@@ -40,6 +40,7 @@ enum BentoStatus { active, comingSoon }
 /// nghiệp vụ, chỉ mô tả cách hiển thị + hành động khi bấm.
 class DashboardFeatureConfig {
   const DashboardFeatureConfig({
+    required this.id,
     required this.label,
     required this.icon,
     required this.gradient,
@@ -48,6 +49,9 @@ class DashboardFeatureConfig {
     this.onTap,
   });
 
+  /// Định danh ổn định của ô — dùng để lưu lựa chọn ghim/bỏ ghim
+  /// (xem `QuickAccessPrefs`), KHÔNG đổi giữa các phiên bản app.
+  final String id;
   final String label;
   final IconData icon;
   final List<Color> gradient;

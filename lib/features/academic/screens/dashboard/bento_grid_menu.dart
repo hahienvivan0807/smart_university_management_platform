@@ -37,20 +37,29 @@ class BentoGridMenu extends StatelessWidget {
           ),
           const SizedBox(height: AppSpacing.sm),
         ],
-        GridView.builder(
-          shrinkWrap: true,
-          physics: const NeverScrollableScrollPhysics(),
-          itemCount: rest.length,
-          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-            crossAxisCount: 3,
-            mainAxisSpacing: AppSpacing.sm,
-            crossAxisSpacing: AppSpacing.sm,
-            // 0.85 thay vì 0.92 — chừa thêm chỗ theo chiều dọc, tránh
-            // RenderFlex overflow vài phần trăm pixel khi nhãn 2 dòng
-            // sát mép ở 1 số bề rộng màn hình cụ thể.
-            childAspectRatio: 0.85,
-          ),
-          itemBuilder: (_, i) => FeatureBentoCard(config: rest[i]),
+        LayoutBuilder(
+          builder: (context, constraints) {
+            // Cùng breakpoint với _FeatureGrid (dashboard_screen.dart) —
+            // điện thoại 3 cột, tablet 4 cột, desktop/màn rộng 5 cột.
+            final coRong = constraints.maxWidth;
+            final soCot = coRong >= 900 ? 5 : (coRong >= 600 ? 4 : 3);
+
+            return GridView.builder(
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              itemCount: rest.length,
+              gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                crossAxisCount: soCot,
+                mainAxisSpacing: AppSpacing.sm,
+                crossAxisSpacing: AppSpacing.sm,
+                // 0.85 thay vì 0.92 — chừa thêm chỗ theo chiều dọc, tránh
+                // RenderFlex overflow vài phần trăm pixel khi nhãn 2 dòng
+                // sát mép ở 1 số bề rộng màn hình cụ thể.
+                childAspectRatio: 0.85,
+              ),
+              itemBuilder: (_, i) => FeatureBentoCard(config: rest[i]),
+            );
+          },
         ),
       ],
     );

@@ -2,16 +2,20 @@ import 'package:flutter/material.dart';
 
 import 'package:smart_university_management_platform/core/theme.dart';
 import 'package:smart_university_management_platform/data/models/dashboard_mock_data.dart';
+import 'package:smart_university_management_platform/data/services/quick_access_prefs.dart';
 import 'package:smart_university_management_platform/main.dart';
 import 'admin_dashboard_screen.dart';
 import 'academic_term_list_screen.dart';
 import 'course_catalog_home_screen.dart';
 import 'course_offering_list_screen.dart';
 import 'dashboard/bento_grid_menu.dart';
+import 'dashboard/customize_quick_access_screen.dart';
 import 'dashboard/dashboard_header.dart';
+import 'dashboard/lecturer_dashboard_header.dart';
 import 'dashboard/next_class_card.dart';
 import 'faculty_list_screen.dart';
 import 'program_list_screen.dart';
+import 'registration_screen.dart';
 
 // ============================================================================
 // DASHBOARD SCREEN  —  tab đầu tiên, hiện ngay sau đăng nhập cho mọi role.
@@ -23,9 +27,16 @@ import 'program_list_screen.dart';
 // chưa có backend (Điểm số/Học phí/Tin tức — xem CONTEXT.md, các phase này
 // chưa build). Load lần lượt (staggered fade+slide) khi vào màn.
 //
-// Giảng viên / Quản trị: giữ nguyên layout gradient-header + lưới danh mục
-// đơn giản của bản trước — 2 role này không nằm trong phạm vi yêu cầu thiết
-// kế lại lần này, đổi luôn có thể phá vỡ trải nghiệm đã ổn định của họ.
+// Giảng viên (2026-07-06 — thiết kế lại): cùng tinh thần Bento Box, nhưng
+// không có thẻ SV điện tử/đếm ngược lớp học (Focus Card lịch dạy để dành cho
+// đợt sau — cần thêm endpoint backend mới). Ô "Lớp học phần của tôi" luôn
+// ghim đầu (không tắt được) và giờ chỉ hiện đúng lớp giảng viên phụ trách
+// (trước đây hiện cả lớp của giảng viên khác — xem course_offering_list_screen.dart).
+// Các ô còn lại (Danh mục môn học/Chương trình đào tạo/Khoa & Bộ môn/Điểm số)
+// tự chọn ghim/bỏ ghim qua nút "Tùy chỉnh" — lưu cục bộ trên máy.
+//
+// Quản trị: giữ nguyên layout gradient-header + lưới danh mục đơn giản của
+// bản trước — ngoài phạm vi yêu cầu thiết kế lại lần này.
 // ============================================================================
 
 class DashboardScreen extends StatefulWidget {
@@ -44,6 +55,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
   @override
   Widget build(BuildContext context) {
     if (_laSinhVien) return const _StudentDashboard();
+    if (_laGiangVien && !_laQuanTri) return const _LecturerDashboard();
     return _StaffDashboard(laQuanTri: _laQuanTri, laGiangVien: _laGiangVien);
   }
 }
@@ -95,15 +107,17 @@ class _StudentDashboardState extends State<_StudentDashboard>
 
   List<DashboardFeatureConfig> _bentoItems(BuildContext context) => [
         DashboardFeatureConfig(
+          id: 'course_offerings',
           label: 'Đăng ký học phần',
           icon: Icons.edit_calendar_rounded,
           gradient: const [Color(0xFF4F7CFF), Color(0xFF3A5FE0)],
           status: BentoStatus.active,
           featured: true,
           onTap: (ctx) => Navigator.push(ctx, MaterialPageRoute(
-              builder: (_) => const AcademicTermListScreen(laManHinhDoc: true))),
+              builder: (_) => const RegistrationScreen())),
         ),
         DashboardFeatureConfig(
+          id: 'programs',
           label: 'Chương trình đào tạo',
           icon: Icons.menu_book_rounded,
           gradient: const [Color(0xFFA070E8), Color(0xFF7E4FD1)],
@@ -112,26 +126,30 @@ class _StudentDashboardState extends State<_StudentDashboard>
               builder: (_) => const ProgramListScreen(laManHinhDoc: true))),
         ),
         DashboardFeatureConfig(
+          id: 'course_catalog',
           label: 'Danh mục môn học',
           icon: Icons.auto_stories_rounded,
           gradient: const [Color(0xFF2DB7A3), Color(0xFF1F9385)],
           status: BentoStatus.active,
           onTap: (ctx) => Navigator.push(ctx, MaterialPageRoute(
-              builder: (_) => const CourseCatalogHomeScreen())),
+              builder: (_) => const CourseCatalogHomeScreen(laManHinhDoc: true))),
         ),
         const DashboardFeatureConfig(
+          id: 'grades',
           label: 'Điểm số',
           icon: Icons.bar_chart_rounded,
           gradient: [Color(0xFFE8A33D), Color(0xFFD1832A)],
           status: BentoStatus.comingSoon,
         ),
         const DashboardFeatureConfig(
+          id: 'tuition',
           label: 'Học phí',
           icon: Icons.account_balance_wallet_rounded,
           gradient: [Color(0xFFE5645B), Color(0xFFCC463D)],
           status: BentoStatus.comingSoon,
         ),
         const DashboardFeatureConfig(
+          id: 'news',
           label: 'Tin tức',
           icon: Icons.campaign_rounded,
           gradient: [Color(0xFF5B8DEF), Color(0xFF3E6FD4)],
@@ -165,8 +183,172 @@ class _StudentDashboardState extends State<_StudentDashboard>
 }
 
 // ============================================================================
-// STAFF DASHBOARD (Giảng viên / Quản trị) — layout đơn giản, giữ nguyên
-// từ bản trước đó, không nằm trong phạm vi thiết kế lại lần này.
+// LECTURER DASHBOARD — Bento Box, không thẻ SV/Focus Card lịch dạy (để sau).
+// "Lớp học phần của tôi" luôn ghim đầu; phần còn lại tự chọn ghim qua "Tùy chỉnh".
+// ============================================================================
+
+const _vaiTroGiangVien = 'Lecturer';
+
+class _LecturerDashboard extends StatefulWidget {
+  const _LecturerDashboard();
+
+  @override
+  State<_LecturerDashboard> createState() => _LecturerDashboardState();
+}
+
+class _LecturerDashboardState extends State<_LecturerDashboard>
+    with SingleTickerProviderStateMixin {
+  final _prefs = const QuickAccessPrefs();
+
+  late final AnimationController _controller = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 700),
+  )..forward();
+
+  Set<String> _daGhimTuyChon = {};
+
+  /// Ô luôn ghim đầu Dashboard, không tắt được.
+  DashboardFeatureConfig get _oCoDinh => DashboardFeatureConfig(
+        id: 'my_offerings',
+        label: 'Lớp học phần của tôi',
+        icon: Icons.class_rounded,
+        gradient: const [Color(0xFF4F7CFF), Color(0xFF3A5FE0)],
+        status: BentoStatus.active,
+        featured: true,
+        onTap: (ctx) => Navigator.push(ctx, MaterialPageRoute(
+            builder: (_) => const CourseOfferingListScreen(laManHinhDoc: true))),
+      );
+
+  /// Các ô người dùng tự chọn ghim/bỏ ghim qua màn "Tùy chỉnh".
+  List<DashboardFeatureConfig> get _oTuyChon => [
+        DashboardFeatureConfig(
+          id: 'course_catalog',
+          label: 'Danh mục môn học',
+          icon: Icons.auto_stories_rounded,
+          gradient: const [Color(0xFF2DB7A3), Color(0xFF1F9385)],
+          status: BentoStatus.active,
+          onTap: (ctx) => Navigator.push(ctx, MaterialPageRoute(
+              builder: (_) => const CourseCatalogHomeScreen(laManHinhDoc: true))),
+        ),
+        DashboardFeatureConfig(
+          id: 'programs',
+          label: 'Chương trình đào tạo',
+          icon: Icons.menu_book_rounded,
+          gradient: const [Color(0xFFA070E8), Color(0xFF7E4FD1)],
+          status: BentoStatus.active,
+          onTap: (ctx) => Navigator.push(ctx, MaterialPageRoute(
+              builder: (_) => const ProgramListScreen(laManHinhDoc: true))),
+        ),
+        DashboardFeatureConfig(
+          id: 'faculties',
+          label: 'Khoa & Bộ môn',
+          icon: Icons.account_balance_rounded,
+          gradient: const [Color(0xFFE8A33D), Color(0xFFD1832A)],
+          status: BentoStatus.active,
+          onTap: (ctx) => Navigator.push(ctx, MaterialPageRoute(
+              builder: (_) => const FacultyListScreen(laManHinhDoc: true))),
+        ),
+        const DashboardFeatureConfig(
+          id: 'grades',
+          label: 'Điểm số',
+          icon: Icons.bar_chart_rounded,
+          gradient: [Color(0xFFE5645B), Color(0xFFCC463D)],
+          status: BentoStatus.comingSoon,
+        ),
+      ];
+
+  @override
+  void initState() {
+    super.initState();
+    _taiDaGhim();
+  }
+
+  Future<void> _taiDaGhim() async {
+    final daGhim = await _prefs.layDaGhim(_vaiTroGiangVien);
+    if (!mounted) return;
+    setState(() => _daGhimTuyChon = daGhim);
+  }
+
+  Future<void> _moTuyChinh(BuildContext context) async {
+    await Navigator.push(context, MaterialPageRoute(
+      builder: (_) => CustomizeQuickAccessScreen(
+        vaiTro: _vaiTroGiangVien,
+        chucNangCoDinh: [_oCoDinh],
+        chucNangTuyChon: _oTuyChon,
+      ),
+    ));
+    _taiDaGhim();
+  }
+
+  Widget _staggered(int thuTu, Widget child) {
+    final batDau = thuTu * 0.12;
+    final ket = (batDau + 0.5).clamp(0.0, 1.0);
+    final anim = CurvedAnimation(
+      parent: _controller,
+      curve: Interval(batDau, ket, curve: Curves.easeOutCubic),
+    );
+    return FadeTransition(
+      opacity: anim,
+      child: SlideTransition(
+        position: Tween<Offset>(
+          begin: const Offset(0, 0.08),
+          end: Offset.zero,
+        ).animate(anim),
+        child: child,
+      ),
+    );
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final items = [
+      _oCoDinh,
+      for (final cfg in _oTuyChon)
+        if (_daGhimTuyChon.contains(cfg.id)) cfg,
+    ];
+
+    return Scaffold(
+      backgroundColor: context.canvas,
+      body: SafeArea(
+        child: ListView(
+          padding: const EdgeInsets.all(AppSpacing.md),
+          children: [
+            _staggered(0, const LecturerDashboardHeader()),
+            const SizedBox(height: AppSpacing.lg),
+            _staggered(
+              1,
+              Row(
+                children: [
+                  Expanded(
+                    child: Text('Chức năng',
+                        style: Theme.of(context).textTheme.titleMedium),
+                  ),
+                  IconButton(
+                    tooltip: 'Tùy chỉnh',
+                    icon: const Icon(Icons.tune_rounded, size: 20),
+                    onPressed: () => _moTuyChinh(context),
+                  ),
+                ],
+              ),
+            ),
+            _staggered(2, BentoGridMenu(items: items)),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ============================================================================
+// STAFF DASHBOARD (Quản trị) — layout đơn giản, giữ nguyên từ bản trước đó,
+// ngoài phạm vi thiết kế lại lần này. Giảng viên giờ dùng _LecturerDashboard
+// ở trên.
 // ============================================================================
 
 class _StaffDashboard extends StatelessWidget {
@@ -243,7 +425,7 @@ class _StaffDashboard extends StatelessWidget {
         label: 'Danh mục môn học',
         color: AppColors.teal,
         onTap: (ctx) => Navigator.push(ctx, MaterialPageRoute(
-            builder: (_) => const CourseCatalogHomeScreen())),
+            builder: (_) => const CourseCatalogHomeScreen(laManHinhDoc: true))),
       ),
     ];
   }
