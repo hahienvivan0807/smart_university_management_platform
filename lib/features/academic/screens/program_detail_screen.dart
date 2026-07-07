@@ -1,9 +1,12 @@
 import 'package:flutter/material.dart';
 
 import 'package:smart_university_management_platform/core/theme.dart';
+import 'package:smart_university_management_platform/data/models/enrollment.dart';
 import 'package:smart_university_management_platform/data/models/program.dart';
+import 'package:smart_university_management_platform/data/services/enrollment_service.dart';
 import 'package:smart_university_management_platform/data/services/program_service.dart';
 import 'package:smart_university_management_platform/main.dart';
+import 'package:smart_university_management_platform/shared/widgets/skeleton.dart';
 
 /// Chi tiết 1 chương trình đào tạo — thông tin chung + curriculum (danh sách môn).
 class ProgramDetailScreen extends StatefulWidget {
@@ -17,8 +20,10 @@ class ProgramDetailScreen extends StatefulWidget {
 
 class _ProgramDetailScreenState extends State<ProgramDetailScreen> {
   final _dichVu = ProgramService(authenticatedClient);
+  final _enrollSv = EnrollmentService(authenticatedClient);
 
   ProgramDetail? _chiTiet;
+  Map<int, int> _trangThaiMonHoc = {}; // courseId -> status (1/2/4/5)
   bool _dangTai = true;
   String? _loi;
 
@@ -26,6 +31,8 @@ class _ProgramDetailScreenState extends State<ProgramDetailScreen> {
     final roles = session.roles;
     return roles.contains('Admin') || roles.contains('AcademicOffice');
   }
+
+  bool get _laSinhVien => session.roles.contains('Student');
 
   @override
   void initState() {
@@ -39,13 +46,20 @@ class _ProgramDetailScreenState extends State<ProgramDetailScreen> {
       _loi = null;
     });
 
-    final ketQua = await _dichVu.layChiTiet(widget.programId);
+    final ketQuaChiTiet = await _dichVu.layChiTiet(widget.programId);
+    final trangThai = _laSinhVien
+        ? await _enrollSv.layTrangThaiMonHoc()
+        : (data: <CourseStatusItem>[], error: null);
 
     if (!mounted) return;
     setState(() {
       _dangTai = false;
-      _chiTiet = ketQua.data;
-      _loi = ketQua.error;
+      _chiTiet = ketQuaChiTiet.data;
+      _trangThaiMonHoc = {
+        for (final e in trangThai.data ?? <CourseStatusItem>[])
+          e.courseId: e.status,
+      };
+      _loi = ketQuaChiTiet.error;
     });
   }
 
@@ -201,7 +215,7 @@ class _ProgramDetailScreenState extends State<ProgramDetailScreen> {
   }
 
   Widget _buildBody() {
-    if (_dangTai) return const Center(child: CircularProgressIndicator());
+    if (_dangTai) return const SkeletonListView();
 
     if (_loi != null) {
       return _ErrorView(message: _loi!, onRetry: _taiChiTiet);
@@ -237,6 +251,8 @@ class _ProgramDetailScreenState extends State<ProgramDetailScreen> {
                 padding: const EdgeInsets.only(bottom: AppSpacing.xs),
                 child: _CourseTile(
                   mon: mon,
+                  trangThai:
+                      _laSinhVien ? _trangThaiMonHoc[mon.courseId] : null,
                   onXoa: _coQuyenGhi ? () => _xoaMonHoc(mon) : null,
                 ),
               ),
@@ -283,7 +299,7 @@ class _ThongTinCard extends StatelessWidget {
               const SizedBox(width: 4),
               Text('Khóa ${ct.curriculumYear}',
                   style: Theme.of(context).textTheme.bodyMedium),
-              if (ct.totalCredits != null) ...[
+              if (ct.totalCredits > 0) ...[
                 const SizedBox(width: AppSpacing.sm),
                 Icon(Icons.stacked_bar_chart_outlined,
                     size: 14, color: context.muted),
@@ -302,8 +318,11 @@ class _ThongTinCard extends StatelessWidget {
 // ── Tile môn học trong curriculum ────────────────────────────────────────────
 
 class _CourseTile extends StatelessWidget {
-  const _CourseTile({required this.mon, this.onXoa});
+  const _CourseTile({required this.mon, this.trangThai, this.onXoa});
   final ProgramCourseItem mon;
+
+  /// null = không áp dụng (không phải SV) hoặc chưa học; 1/2/4/5 = trạng thái enrollment.
+  final int? trangThai;
   final VoidCallback? onXoa;
 
   @override
@@ -334,8 +353,15 @@ class _CourseTile extends StatelessWidget {
             ),
           ),
         ),
-        title: Text(mon.courseName,
-            style: Theme.of(context).textTheme.titleMedium),
+        title: Row(
+          children: [
+            Expanded(
+              child: Text(mon.courseName,
+                  style: Theme.of(context).textTheme.titleMedium),
+            ),
+            if (trangThai != null) _TrangThaiMonBadge(status: trangThai!),
+          ],
+        ),
         subtitle: Padding(
           padding: const EdgeInsets.only(top: 2),
           child: Text(
@@ -353,6 +379,45 @@ class _CourseTile extends StatelessWidget {
                 onPressed: onXoa,
               )
             : null,
+      ),
+    );
+  }
+}
+
+// ── Badge trạng thái môn (Đậu/Rớt/Đang học) trong curriculum ─────────────────
+
+class _TrangThaiMonBadge extends StatelessWidget {
+  const _TrangThaiMonBadge({required this.status});
+
+  /// 1=Đang học, 2=Đang chờ, 4=Đậu, 5=Rớt
+  final int status;
+
+  @override
+  Widget build(BuildContext context) {
+    final (nhan, mau) = switch (status) {
+      4 => ('Đậu', const Color(0xFF16A34A)),
+      5 => ('Rớt', AppColors.red),
+      1 => ('Đang học', AppColors.accent),
+      2 => ('Đang chờ', const Color(0xFFD97706)),
+      _ => ('', context.muted),
+    };
+    if (nhan.isEmpty) return const SizedBox.shrink();
+
+    return Container(
+      margin: const EdgeInsets.only(left: AppSpacing.xs),
+      padding:
+          const EdgeInsets.symmetric(horizontal: AppSpacing.xs + 2, vertical: 2),
+      decoration: BoxDecoration(
+        color: mau.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(AppRadius.sm),
+      ),
+      child: Text(
+        nhan,
+        style: Theme.of(context).textTheme.labelSmall?.copyWith(
+              color: mau,
+              fontWeight: FontWeight.w600,
+              fontSize: 10,
+            ),
       ),
     );
   }

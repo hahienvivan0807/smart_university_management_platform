@@ -40,6 +40,7 @@ class EnrollmentItem {
     required this.termLabel,
     required this.status,
     required this.enrolledAtUtc,
+    this.waitlistPosition,
   });
 
   final int enrollmentId;
@@ -50,10 +51,32 @@ class EnrollmentItem {
   final int courseCredits;
   final String lecturerName;
   final String termLabel;
+
+  /// 1=Đang học, 2=Đang chờ (waitlist), 3=Đã hủy, 4=Đậu, 5=Rớt
   final int status;
   final DateTime enrolledAtUtc;
+  final int? waitlistPosition;
 
+  bool get dangHoc => status == 1;
+  bool get dangCho => status == 2;
+  bool get daHuy => status == 3;
+  bool get daDau => status == 4;
+  bool get daRot => status == 5;
+
+  /// true = còn có thể hủy (đang học hoặc đang trong hàng đợi).
+  bool get coTheHuy => status == 1 || status == 2;
+
+  /// Giữ tương thích ngược cho chỗ nào chỉ cần biết "còn hiệu lực" (đang học).
   bool get daDangKy => status == 1;
+
+  String get trangThaiText => switch (status) {
+        1 => 'Đang học',
+        2 => 'Đang chờ${waitlistPosition != null ? ' (vị trí $waitlistPosition)' : ''}',
+        3 => 'Đã hủy',
+        4 => 'Đậu',
+        5 => 'Rớt',
+        _ => 'Không xác định',
+      };
 
   factory EnrollmentItem.fromJson(Map<String, dynamic> json) => EnrollmentItem(
         enrollmentId: (json['enrollmentId'] as num).toInt(),
@@ -66,6 +89,29 @@ class EnrollmentItem {
         termLabel: json['termLabel'] as String,
         status: json['status'] as int,
         enrolledAtUtc: DateTime.parse(json['enrolledAtUtc'] as String),
+        waitlistPosition: json['waitlistPosition'] as int?,
+      );
+}
+
+/// Trạng thái học tập của tôi với 1 môn học (theo CourseId, gộp mọi lần học lại) —
+/// trả về từ GET /api/me/course-status. Dùng cho Chương trình đào tạo & Danh mục
+/// môn học để hiện Đậu/Rớt/Đang học/Chưa học (vắng mặt trong danh sách = chưa học).
+class CourseStatusItem {
+  const CourseStatusItem({required this.courseId, required this.status});
+
+  final int courseId;
+
+  /// 1=Đang học, 2=Đang chờ, 4=Đậu, 5=Rớt
+  final int status;
+
+  bool get daDau => status == 4;
+  bool get daRot => status == 5;
+  bool get dangHocHoacCho => status == 1 || status == 2;
+
+  factory CourseStatusItem.fromJson(Map<String, dynamic> json) =>
+      CourseStatusItem(
+        courseId: json['courseId'] as int,
+        status: json['status'] as int,
       );
 }
 

@@ -4,8 +4,10 @@ import 'package:smart_university_management_platform/core/theme.dart';
 import 'package:smart_university_management_platform/data/models/academic_term.dart';
 import 'package:smart_university_management_platform/data/services/academic_term_service.dart';
 import 'package:smart_university_management_platform/main.dart';
+import 'package:smart_university_management_platform/shared/widgets/skeleton.dart';
 import 'academic_term_form_screen.dart';
 import 'course_offering_list_screen.dart';
+import 'registration_screen.dart';
 
 // ============================================================================
 // ACADEMIC TERM LIST SCREEN  —  danh sách học kỳ, tap → xem lớp HP
@@ -41,10 +43,22 @@ class _AcademicTermListScreenState extends State<AcademicTermListScreen> {
     return roles.contains('Admin') || roles.contains('AcademicOffice');
   }
 
+  /// Sinh viên (không kiêm vai trò quản trị/giảng viên) đi thẳng vào màn
+  /// "Đăng ký học phần" — không cần tự chọn học kỳ trước; nhân viên/giảng
+  /// viên vẫn giữ nguyên luồng duyệt theo học kỳ để quản lý lớp học phần.
+  bool get _laSinhVienThuanTuy {
+    final roles = session.roles;
+    return roles.contains('Student') &&
+        !roles.contains('Lecturer') &&
+        !_coQuyenGhi;
+  }
+
   @override
   void initState() {
     super.initState();
-    _taiDanhSach();
+    // SV thuần túy được build() chuyển thẳng sang RegistrationScreen, không
+    // cần tải danh sách học kỳ (chỉ nhân viên/giảng viên mới duyệt theo kỳ).
+    if (!_laSinhVienThuanTuy) _taiDanhSach();
   }
 
   Future<void> _taiDanhSach() async {
@@ -87,6 +101,8 @@ class _AcademicTermListScreenState extends State<AcademicTermListScreen> {
 
   @override
   Widget build(BuildContext context) {
+    if (_laSinhVienThuanTuy) return const RegistrationScreen();
+
     return Scaffold(
       backgroundColor: context.canvas,
       appBar: widget.laManHinhDoc
@@ -115,7 +131,7 @@ class _AcademicTermListScreenState extends State<AcademicTermListScreen> {
 
   Widget _buildBody() {
     if (_dangTai) {
-      return const Center(child: CircularProgressIndicator());
+      return const SkeletonListView();
     }
 
     if (_loi != null) {

@@ -36,7 +36,6 @@ class _ProgramFormScreenState extends State<ProgramFormScreen> {
   late final TextEditingController _maCtrl;
   late final TextEditingController _nganhIdCtrl;
   late final TextEditingController _khoaHocCtrl;
-  late final TextEditingController _tinChiCtrl;
 
   bool _dangGui = false;
   String? _loi;
@@ -54,8 +53,6 @@ class _ProgramFormScreenState extends State<ProgramFormScreen> {
     );
     _khoaHocCtrl =
         TextEditingController(text: ct?.curriculumYear.toString() ?? '');
-    _tinChiCtrl =
-        TextEditingController(text: ct?.totalCredits?.toString() ?? '');
   }
 
   @override
@@ -64,7 +61,6 @@ class _ProgramFormScreenState extends State<ProgramFormScreen> {
     _maCtrl.dispose();
     _nganhIdCtrl.dispose();
     _khoaHocCtrl.dispose();
-    _tinChiCtrl.dispose();
     super.dispose();
   }
 
@@ -76,7 +72,6 @@ class _ProgramFormScreenState extends State<ProgramFormScreen> {
     final ma = _maCtrl.text.trim();
     final nganhId = int.tryParse(_nganhIdCtrl.text.trim());
     final khoaHoc = int.tryParse(_khoaHocCtrl.text.trim());
-    final tinChi = int.tryParse(_tinChiCtrl.text.trim());
 
     if (ten.isEmpty) {
       setState(() => _loi = 'Vui lòng nhập tên chương trình.');
@@ -105,7 +100,7 @@ class _ProgramFormScreenState extends State<ProgramFormScreen> {
     if (_laSua) {
       final ketQua = await _dichVu.capNhat(
         widget.ctCanSua!.programId,
-        UpdateProgramRequest(name: ten, totalCredits: tinChi),
+        UpdateProgramRequest(name: ten),
       );
       loiTuApi = ketQua.error;
     } else {
@@ -114,7 +109,6 @@ class _ProgramFormScreenState extends State<ProgramFormScreen> {
         code: ma,
         name: ten,
         curriculumYear: khoaHoc!,
-        totalCredits: tinChi,
       ));
       loiTuApi = ketQua.error;
     }
@@ -200,7 +194,10 @@ class _ProgramFormScreenState extends State<ProgramFormScreen> {
                           icon: Icons.menu_book_rounded,
                           hint: 'VD: CT Kỹ thuật Phần mềm - Khóa 2023',
                           enabled: !_dangGui,
-                          textInputAction: TextInputAction.next,
+                          textInputAction: _laSua
+                              ? TextInputAction.done
+                              : TextInputAction.next,
+                          onSubmitted: _laSua ? (_) => _submit() : null,
                         ),
 
                         if (!_laSua) ...[
@@ -235,22 +232,10 @@ class _ProgramFormScreenState extends State<ProgramFormScreen> {
                             hint: 'VD: 2023',
                             enabled: !_dangGui,
                             keyboardType: TextInputType.number,
-                            textInputAction: TextInputAction.next,
+                            textInputAction: TextInputAction.done,
+                            onSubmitted: (_) => _submit(),
                           ),
                         ],
-
-                        const SizedBox(height: AppSpacing.md),
-                        const _FieldLabel('Tổng tín chỉ (không bắt buộc)'),
-                        const SizedBox(height: AppSpacing.xs),
-                        _Field(
-                          controller: _tinChiCtrl,
-                          icon: Icons.stacked_bar_chart_rounded,
-                          hint: 'VD: 140',
-                          enabled: !_dangGui,
-                          keyboardType: TextInputType.number,
-                          textInputAction: TextInputAction.done,
-                          onSubmitted: (_) => _submit(),
-                        ),
 
                         if (_loi != null) ...[
                           const SizedBox(height: AppSpacing.md),

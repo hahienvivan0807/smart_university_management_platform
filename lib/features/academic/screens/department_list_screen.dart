@@ -4,6 +4,7 @@ import 'package:smart_university_management_platform/core/theme.dart';
 import 'package:smart_university_management_platform/data/models/department.dart';
 import 'package:smart_university_management_platform/data/services/department_service.dart';
 import 'package:smart_university_management_platform/main.dart';
+import 'package:smart_university_management_platform/shared/widgets/skeleton.dart';
 import 'department_form_screen.dart';
 
 // ============================================================================
@@ -177,7 +178,7 @@ class _DepartmentListScreenState extends State<DepartmentListScreen> {
 
   Widget _buildBody() {
     if (_dangTai) {
-      return const Center(child: CircularProgressIndicator());
+      return const SkeletonListView();
     }
 
     if (_loi != null) {

@@ -4,6 +4,7 @@ import 'package:smart_university_management_platform/core/theme.dart';
 import 'package:smart_university_management_platform/data/models/enrollment.dart';
 import 'package:smart_university_management_platform/data/services/enrollment_service.dart';
 import 'package:smart_university_management_platform/main.dart';
+import 'package:smart_university_management_platform/shared/widgets/skeleton.dart';
 
 /// Danh sách sinh viên đã đăng ký một lớp học phần — dành cho giảng viên / staff.
 class RosterScreen extends StatefulWidget {
@@ -77,7 +78,7 @@ class _RosterScreenState extends State<RosterScreen> {
   }
 
   Widget _buildBody() {
-    if (_dangTai) return const Center(child: CircularProgressIndicator());
+    if (_dangTai) return const SkeletonListView();
 
     if (_loi != null) {
       return _ErrorView(message: _loi!, onRetry: _taiDanhSach);

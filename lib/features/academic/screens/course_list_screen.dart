@@ -2,10 +2,16 @@ import 'package:flutter/material.dart';
 
 import 'package:smart_university_management_platform/core/theme.dart';
 import 'package:smart_university_management_platform/data/models/course.dart';
+import 'package:smart_university_management_platform/data/models/enrollment.dart';
 import 'package:smart_university_management_platform/data/services/course_service.dart';
+import 'package:smart_university_management_platform/data/services/enrollment_service.dart';
 import 'package:smart_university_management_platform/main.dart';
+import 'package:smart_university_management_platform/shared/widgets/skeleton.dart';
 import 'course_form_screen.dart';
 import 'document_list_screen.dart';
+
+/// Bộ lọc theo trạng thái học tập — chỉ áp dụng cho sinh viên.
+enum BoLocMonHoc { tatCa, chuaHoc, dangHoc, daDau, daRot }
 
 // ============================================================================
 // COURSE LIST SCREEN  —  danh sách môn học
@@ -49,14 +55,33 @@ class CourseListScreen extends StatefulWidget {
 
 class _CourseListScreenState extends State<CourseListScreen> {
   final _dichVu = CourseService(authenticatedClient);
+  final _enrollSv = EnrollmentService(authenticatedClient);
 
   List<CourseItem> _danhSach = [];
+  Map<int, int> _trangThaiMonHoc = {}; // courseId -> status (1/2/4/5)
+  BoLocMonHoc _boLoc = BoLocMonHoc.tatCa;
   bool _dangTai = true;
   String? _loi;
 
   bool get _coQuyenGhi {
     final roles = session.roles;
     return roles.contains('Admin') || roles.contains('AcademicOffice');
+  }
+
+  bool get _laSinhVien => session.roles.contains('Student');
+
+  List<CourseItem> get _danhSachDaLoc {
+    if (_boLoc == BoLocMonHoc.tatCa) return _danhSach;
+    return _danhSach.where((mon) {
+      final status = _trangThaiMonHoc[mon.courseId];
+      return switch (_boLoc) {
+        BoLocMonHoc.chuaHoc => status == null,
+        BoLocMonHoc.dangHoc => status == 1 || status == 2,
+        BoLocMonHoc.daDau => status == 4,
+        BoLocMonHoc.daRot => status == 5,
+        BoLocMonHoc.tatCa => true,
+      };
+    }).toList();
   }
 
   @override
@@ -75,11 +100,18 @@ class _CourseListScreenState extends State<CourseListScreen> {
       facultyId: widget.facultyId,
       departmentId: widget.departmentId,
     );
+    final trangThai = _laSinhVien
+        ? await _enrollSv.layTrangThaiMonHoc()
+        : (data: <CourseStatusItem>[], error: null);
 
     if (!mounted) return;
     setState(() {
       _dangTai = false;
       _danhSach = ketQua.data?.items ?? [];
+      _trangThaiMonHoc = {
+        for (final e in trangThai.data ?? <CourseStatusItem>[])
+          e.courseId: e.status,
+      };
       _loi = ketQua.error;
     });
   }
@@ -180,7 +212,7 @@ class _CourseListScreenState extends State<CourseListScreen> {
 
   Widget _buildBody() {
     if (_dangTai) {
-      return const Center(child: CircularProgressIndicator());
+      return const SkeletonListView();
     }
 
     if (_loi != null) {
@@ -196,25 +228,92 @@ class _CourseListScreenState extends State<CourseListScreen> {
       );
     }
 
-    return RefreshIndicator(
-      color: AppColors.accent,
-      onRefresh: _taiDanhSach,
+    final danhSach = _danhSachDaLoc;
+
+    return Column(
+      children: [
+        if (_laSinhVien) _BoLocRow(
+          boLoc: _boLoc,
+          onChon: (b) => setState(() => _boLoc = b),
+        ),
+        Expanded(
+          child: danhSach.isEmpty
+              ? Center(
+                  child: Text('Không có môn học nào khớp bộ lọc.',
+                      style: Theme.of(context).textTheme.bodyMedium),
+                )
+              : RefreshIndicator(
+                  color: AppColors.accent,
+                  onRefresh: _taiDanhSach,
+                  child: ListView.separated(
+                    padding: const EdgeInsets.fromLTRB(
+                      AppSpacing.md,
+                      AppSpacing.sm,
+                      AppSpacing.md,
+                      AppSpacing.xl + 56,
+                    ),
+                    itemCount: danhSach.length,
+                    separatorBuilder: (_, _) =>
+                        const SizedBox(height: AppSpacing.xs),
+                    itemBuilder: (_, i) => _MonHocTile(
+                      mon: danhSach[i],
+                      trangThai: _laSinhVien
+                          ? _trangThaiMonHoc[danhSach[i].courseId]
+                          : null,
+                      coQuyenGhi: _coQuyenGhi,
+                      onSua: () => _moForm(mon: danhSach[i]),
+                      onXoa: () => _xacNhanXoa(danhSach[i]),
+                      onXemTaiLieu: () => _xemTaiLieu(danhSach[i]),
+                    ),
+                  ),
+                ),
+        ),
+      ],
+    );
+  }
+}
+
+// ── Hàng bộ lọc theo trạng thái học tập (chỉ SV) ──────────────────────────────
+
+class _BoLocRow extends StatelessWidget {
+  const _BoLocRow({required this.boLoc, required this.onChon});
+
+  final BoLocMonHoc boLoc;
+  final ValueChanged<BoLocMonHoc> onChon;
+
+  static const _nhan = {
+    BoLocMonHoc.tatCa: 'Tất cả',
+    BoLocMonHoc.chuaHoc: 'Chưa học',
+    BoLocMonHoc.dangHoc: 'Đang học',
+    BoLocMonHoc.daDau: 'Đậu',
+    BoLocMonHoc.daRot: 'Rớt',
+  };
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      height: 40,
       child: ListView.separated(
-        padding: const EdgeInsets.fromLTRB(
-          AppSpacing.md,
-          AppSpacing.sm,
-          AppSpacing.md,
-          AppSpacing.xl + 56,
-        ),
-        itemCount: _danhSach.length,
-        separatorBuilder: (_, _) => const SizedBox(height: AppSpacing.xs),
-        itemBuilder: (_, i) => _MonHocTile(
-          mon: _danhSach[i],
-          coQuyenGhi: _coQuyenGhi,
-          onSua: () => _moForm(mon: _danhSach[i]),
-          onXoa: () => _xacNhanXoa(_danhSach[i]),
-          onXemTaiLieu: () => _xemTaiLieu(_danhSach[i]),
-        ),
+        scrollDirection: Axis.horizontal,
+        padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md),
+        itemCount: BoLocMonHoc.values.length,
+        separatorBuilder: (_, _) => const SizedBox(width: AppSpacing.xs),
+        itemBuilder: (_, i) {
+          final b = BoLocMonHoc.values[i];
+          final daChon = b == boLoc;
+          return ChoiceChip(
+            label: Text(_nhan[b]!),
+            selected: daChon,
+            onSelected: (_) => onChon(b),
+            selectedColor: AppColors.accent,
+            backgroundColor: context.panel,
+            side: BorderSide(color: daChon ? AppColors.accent : context.border),
+            labelStyle: Theme.of(context).textTheme.labelMedium?.copyWith(
+                  color: daChon ? Colors.white : context.text,
+                  fontWeight: FontWeight.w600,
+                ),
+          );
+        },
       ),
     );
   }
@@ -225,6 +324,7 @@ class _CourseListScreenState extends State<CourseListScreen> {
 class _MonHocTile extends StatelessWidget {
   const _MonHocTile({
     required this.mon,
+    this.trangThai,
     required this.coQuyenGhi,
     required this.onSua,
     required this.onXoa,
@@ -232,6 +332,9 @@ class _MonHocTile extends StatelessWidget {
   });
 
   final CourseItem mon;
+
+  /// null = không phải SV, hoặc chưa học môn này; 1/2/4/5 = trạng thái enrollment.
+  final int? trangThai;
   final bool coQuyenGhi;
   final VoidCallback onSua;
   final VoidCallback onXoa;
@@ -268,9 +371,14 @@ class _MonHocTile extends StatelessWidget {
         contentPadding: const EdgeInsets.symmetric(
             horizontal: AppSpacing.md, vertical: AppSpacing.xs),
         leading: _CreditsBadge(credits: mon.credits),
-        title: Text(
-          mon.name,
-          style: Theme.of(context).textTheme.titleMedium,
+        title: Row(
+          children: [
+            Expanded(
+              child: Text(mon.name,
+                  style: Theme.of(context).textTheme.titleMedium),
+            ),
+            if (trangThai != null) _TrangThaiMonBadge(status: trangThai!),
+          ],
         ),
         subtitle: Padding(
           padding: const EdgeInsets.only(top: 2),
@@ -343,6 +451,45 @@ class _ActionMenu extends StatelessWidget {
 }
 
 enum _MenuAction { sua, xoa }
+
+// ── Badge trạng thái môn (Đậu/Rớt/Đang học) ──────────────────────────────────
+
+class _TrangThaiMonBadge extends StatelessWidget {
+  const _TrangThaiMonBadge({required this.status});
+
+  /// 1=Đang học, 2=Đang chờ, 4=Đậu, 5=Rớt
+  final int status;
+
+  @override
+  Widget build(BuildContext context) {
+    final (nhan, mau) = switch (status) {
+      4 => ('Đậu', const Color(0xFF16A34A)),
+      5 => ('Rớt', AppColors.red),
+      1 => ('Đang học', AppColors.accent),
+      2 => ('Đang chờ', const Color(0xFFD97706)),
+      _ => ('', context.muted),
+    };
+    if (nhan.isEmpty) return const SizedBox.shrink();
+
+    return Container(
+      margin: const EdgeInsets.only(left: AppSpacing.xs),
+      padding:
+          const EdgeInsets.symmetric(horizontal: AppSpacing.xs + 2, vertical: 2),
+      decoration: BoxDecoration(
+        color: mau.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(AppRadius.sm),
+      ),
+      child: Text(
+        nhan,
+        style: Theme.of(context).textTheme.labelSmall?.copyWith(
+              color: mau,
+              fontWeight: FontWeight.w600,
+              fontSize: 10,
+            ),
+      ),
+    );
+  }
+}
 
 // ── Credits badge: ô vuông hiện số tín chỉ ──────────────────────────────────
 

@@ -3,6 +3,7 @@ import 'package:smart_university_management_platform/core/theme.dart';
 import 'package:smart_university_management_platform/data/models/attendance.dart';
 import 'package:smart_university_management_platform/data/services/attendance_service.dart';
 import 'package:smart_university_management_platform/main.dart';
+import 'package:smart_university_management_platform/shared/widgets/skeleton.dart';
 
 class AttendanceHistoryScreen extends StatefulWidget {
   const AttendanceHistoryScreen({
@@ -62,7 +63,7 @@ class _AttendanceHistoryScreenState extends State<AttendanceHistoryScreen> {
         ),
       ),
       body: _dangTai
-          ? const Center(child: CircularProgressIndicator())
+          ? const SkeletonListView()
           : _loi != null
               ? _ErrorView(message: _loi!, onRetry: _tai)
               : _buildBody(),

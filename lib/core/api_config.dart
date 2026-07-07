@@ -23,7 +23,7 @@ class ApiConfig {
 
   // --- Tune these two to match your running backend ------------------------
   static const String _scheme = 'http';
-  static const int _port = 5102; // HTTP dev port (đổi lại https+7161 khi deploy)
+  static const int _port = 5149; // HTTP dev port (đổi lại https+7161 khi deploy) — khớp Properties/launchSettings.json của backend
   // -------------------------------------------------------------------------
 
   /// Resolved host for the current platform (see conditional import above).
@@ -108,13 +108,19 @@ class ApiConfig {
 
   // ── Academic: CourseOfferings ─────────────────────────────────────────────
 
-  /// GET /api/course-offerings?academicTermId=&trang=&soLuong=
-  static Uri courseOfferings({int? termId, int page = 1, int pageSize = 20}) {
+  /// GET /api/course-offerings?academicTermId=&trang=&soLuong=&dangMoDangKy=
+  static Uri courseOfferings({
+    int? termId,
+    int page = 1,
+    int pageSize = 20,
+    bool? dangMoDangKy,
+  }) {
     final params = <String, String>{
       'trang': '$page',
       'soLuong': '$pageSize',
     };
     if (termId != null) params['academicTermId'] = '$termId';
+    if (dangMoDangKy != null) params['dangMoDangKy'] = '$dangMoDangKy';
     return Uri.parse('$baseUrl/api/course-offerings')
         .replace(queryParameters: params);
   }
@@ -185,6 +191,14 @@ class ApiConfig {
   /// GET /api/admin-classes/{id}
   static Uri adminClass(int id) =>
       Uri.parse('$baseUrl/api/admin-classes/$id');
+
+  /// GET /api/profiles/students/{userId}
+  static Uri studentProfile(int userId) =>
+      Uri.parse('$baseUrl/api/profiles/students/$userId');
+
+  /// GET /api/me/course-status — trạng thái Đậu/Rớt/Đang học theo từng môn của tôi
+  static Uri get myCourseStatus =>
+      Uri.parse('$baseUrl/api/me/course-status');
 
   /// POST /api/admin-classes/{id}/students — gán sinh viên vào lớp
   static Uri adminClassStudents(int id) =>
@@ -263,6 +277,29 @@ class ApiConfig {
   /// PUT /api/documents/{id}/deactivate
   static Uri documentDeactivate(int id) =>
       Uri.parse('$baseUrl/api/documents/$id/deactivate');
+
+  // ── Leave Requests (xin nghỉ dạy) ────────────────────────────────────────
+
+  /// POST /api/leave-requests
+  static Uri get leaveRequests => Uri.parse('$baseUrl/api/leave-requests');
+
+  /// PUT /api/leave-requests/{id}/revoke
+  static Uri leaveRequestRevoke(int id) =>
+      Uri.parse('$baseUrl/api/leave-requests/$id/revoke');
+
+  /// GET /api/me/leave-requests
+  static Uri get myLeaveRequests =>
+      Uri.parse('$baseUrl/api/me/leave-requests');
+
+  /// GET /api/leave-requests/blocked-dates?courseOfferingId=
+  static Uri leaveRequestBlockedDates(int courseOfferingId) =>
+      Uri.parse('$baseUrl/api/leave-requests/blocked-dates')
+          .replace(queryParameters: {'courseOfferingId': '$courseOfferingId'});
+
+  /// GET /api/leave-requests/active-suspensions?courseOfferingIds=1,2,3
+  static Uri leaveRequestActiveSuspensions(List<int> courseOfferingIds) =>
+      Uri.parse('$baseUrl/api/leave-requests/active-suspensions').replace(
+          queryParameters: {'courseOfferingIds': courseOfferingIds.join(',')});
 
   /// How long to wait before giving up on a request.
   static const Duration timeout = Duration(seconds: 15);

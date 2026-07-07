@@ -73,6 +73,30 @@ class EnrollmentService {
     }
   }
 
+  /// Lấy trạng thái Đậu/Rớt/Đang học theo từng môn học của tôi — dùng cho hiển thị
+  /// 3 trạng thái ở Chương trình đào tạo & Danh mục môn học.
+  Future<({List<CourseStatusItem>? data, String? error})>
+      layTrangThaiMonHoc() async {
+    try {
+      final res = await _client
+          .get(ApiConfig.myCourseStatus)
+          .timeout(ApiConfig.timeout);
+
+      if (res.statusCode == 200) {
+        final list = jsonDecode(res.body) as List<dynamic>;
+        return (
+          data: list
+              .map((e) => CourseStatusItem.fromJson(e as Map<String, dynamic>))
+              .toList(),
+          error: null,
+        );
+      }
+      return (data: null, error: _extractError(res));
+    } catch (_) {
+      return (data: null, error: 'Không thể kết nối đến server.');
+    }
+  }
+
   /// Lấy danh sách sinh viên trong lớp học phần (roster).
   /// Dùng cho giảng viên phụ trách hoặc staff.
   Future<({List<RosterItem>? data, String? error})> layRoster(

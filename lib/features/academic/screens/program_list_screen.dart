@@ -2,8 +2,10 @@ import 'package:flutter/material.dart';
 
 import 'package:smart_university_management_platform/core/theme.dart';
 import 'package:smart_university_management_platform/data/models/program.dart';
+import 'package:smart_university_management_platform/data/services/auth_service.dart';
 import 'package:smart_university_management_platform/data/services/program_service.dart';
 import 'package:smart_university_management_platform/main.dart';
+import 'package:smart_university_management_platform/shared/widgets/skeleton.dart';
 import 'program_detail_screen.dart';
 import 'program_form_screen.dart';
 
@@ -27,15 +29,65 @@ class _ProgramListScreenState extends State<ProgramListScreen> {
   bool _dangTai = true;
   String? _loi;
 
+  /// null = chưa tải xong / đang tải; -1 = tải xong nhưng lỗi hoặc SV không thuộc
+  /// chương trình nào; > 0 = programId của chính SV.
+  int? _programIdCuaToi;
+
   bool get _coQuyenGhi {
     final roles = session.roles;
     return roles.contains('Admin') || roles.contains('AcademicOffice');
   }
 
+  /// SV thuần túy đi thẳng vào đúng chương trình của mình — không cần tự tìm
+  /// trong danh sách toàn trường (chỉ dành cho nhân viên/giảng viên duyệt).
+  bool get _laSinhVienThuanTuy {
+    final roles = session.roles;
+    return roles.contains('Student') &&
+        !roles.contains('Lecturer') &&
+        !_coQuyenGhi;
+  }
+
   @override
   void initState() {
     super.initState();
-    _taiDanhSach();
+    if (_laSinhVienThuanTuy) {
+      _taiChuongTrinhCuaToi();
+    } else {
+      _taiDanhSach();
+    }
+  }
+
+  Future<void> _taiChuongTrinhCuaToi() async {
+    setState(() {
+      _dangTai = true;
+      _loi = null;
+    });
+
+    // session.me có thể chưa kịp tải xong lúc màn này initState (AppShell gọi
+    // taiThongTinCuaToi() kiểu fire-and-forget, chạy song song với IndexedStack
+    // dựng tất cả tab cùng lúc) — không dựa vào cache, tự hỏi thẳng server.
+    var userId = session.me?.userId;
+    if (userId == null) {
+      final meKq =
+          await AuthService(client: authenticatedClient).layThongTinCuaToi();
+      if (!mounted) return;
+      userId = meKq.data?.userId;
+      if (userId == null) {
+        setState(() {
+          _dangTai = false;
+          _loi = meKq.error ?? 'Không xác định được tài khoản hiện tại.';
+        });
+        return;
+      }
+    }
+
+    final ketQua = await _dichVu.layProgramIdCuaSinhVien(userId);
+    if (!mounted) return;
+    setState(() {
+      _dangTai = false;
+      _programIdCuaToi = ketQua.data ?? -1;
+      _loi = ketQua.error;
+    });
   }
 
   Future<void> _taiDanhSach() async {
@@ -117,6 +169,32 @@ class _ProgramListScreenState extends State<ProgramListScreen> {
 
   @override
   Widget build(BuildContext context) {
+    if (_laSinhVienThuanTuy) {
+      if (_dangTai) {
+        return Scaffold(
+          backgroundColor: context.canvas,
+          body: const SkeletonListView(),
+        );
+      }
+      if (_programIdCuaToi != null && _programIdCuaToi! > 0) {
+        return ProgramDetailScreen(programId: _programIdCuaToi!);
+      }
+      return Scaffold(
+        backgroundColor: context.canvas,
+        appBar: AppBar(
+          backgroundColor: context.canvas,
+          surfaceTintColor: Colors.transparent,
+          elevation: 0,
+          title: Text('Chương trình đào tạo',
+              style: Theme.of(context).textTheme.headlineSmall),
+        ),
+        body: _ErrorView(
+          message: _loi ?? 'Bạn chưa được gán vào chương trình đào tạo nào.',
+          onRetry: _taiChuongTrinhCuaToi,
+        ),
+      );
+    }
+
     return Scaffold(
       backgroundColor: context.canvas,
       appBar: widget.laManHinhDoc
@@ -145,7 +223,7 @@ class _ProgramListScreenState extends State<ProgramListScreen> {
 
   Widget _buildBody() {
     if (_dangTai) {
-      return const Center(child: CircularProgressIndicator());
+      return const SkeletonListView();
     }
 
     if (_loi != null) {
@@ -239,7 +317,7 @@ class _ProgramTile extends StatelessWidget {
             padding: const EdgeInsets.only(top: 2),
             child: Text(
               '${ct.code} · Khóa ${ct.curriculumYear}'
-              '${ct.totalCredits != null ? ' · ${ct.totalCredits} TC' : ''}',
+              '${ct.totalCredits > 0 ? ' · ${ct.totalCredits} TC' : ''}',
               style: Theme.of(context).textTheme.bodyMedium,
             ),
           ),

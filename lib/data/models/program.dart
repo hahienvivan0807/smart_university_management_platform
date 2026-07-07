@@ -13,7 +13,10 @@ class ProgramItem {
   final String code;
   final String name;
   final int curriculumYear;
-  final int? totalCredits;
+
+  /// Tính động ở backend = tổng tín chỉ các môn trong chương trình (bắt buộc +
+  /// tự chọn) — không còn nhập tay, tự đúng khi môn được thêm/gỡ.
+  final int totalCredits;
 
   factory ProgramItem.fromJson(Map<String, dynamic> json) => ProgramItem(
         programId: json['programId'] as int,
@@ -21,7 +24,7 @@ class ProgramItem {
         code: json['code'] as String,
         name: json['name'] as String,
         curriculumYear: json['curriculumYear'] as int,
-        totalCredits: json['totalCredits'] as int?,
+        totalCredits: json['totalCredits'] as int? ?? 0,
       );
 }
 
@@ -74,7 +77,7 @@ class ProgramDetail extends ProgramItem {
         code: json['code'] as String,
         name: json['name'] as String,
         curriculumYear: json['curriculumYear'] as int,
-        totalCredits: json['totalCredits'] as int?,
+        totalCredits: json['totalCredits'] as int? ?? 0,
         majorName: json['majorName'] as String,
         courses: (json['courses'] as List<dynamic>? ?? [])
             .map((e) => ProgramCourseItem.fromJson(e as Map<String, dynamic>))
@@ -88,33 +91,26 @@ class CreateProgramRequest {
     required this.code,
     required this.name,
     required this.curriculumYear,
-    this.totalCredits,
   });
 
   final int majorId;
   final String code;
   final String name;
   final int curriculumYear;
-  final int? totalCredits;
 
   Map<String, dynamic> toJson() => {
         'majorId': majorId,
         'code': code,
         'name': name,
         'curriculumYear': curriculumYear,
-        if (totalCredits != null) 'totalCredits': totalCredits,
       };
 }
 
 class UpdateProgramRequest {
-  const UpdateProgramRequest({required this.name, this.totalCredits});
+  const UpdateProgramRequest({required this.name});
   final String name;
-  final int? totalCredits;
 
-  Map<String, dynamic> toJson() => {
-        'name': name,
-        if (totalCredits != null) 'totalCredits': totalCredits,
-      };
+  Map<String, dynamic> toJson() => {'name': name};
 }
 
 class AddCourseToProgramRequest {

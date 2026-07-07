@@ -11,12 +11,23 @@ class CourseOfferingService {
 
   final http.Client _client;
 
-  /// Lấy danh sách lớp HP, có thể lọc theo học kỳ.
+  /// Lấy danh sách lớp HP, có thể lọc theo học kỳ, hoặc [dangMoDangKy]=true để
+  /// lấy thẳng các lớp đang trong cửa sổ đăng ký ngay bây giờ (không cần biết
+  /// trước học kỳ nào — dùng cho màn "Đăng ký học phần" của sinh viên).
   Future<({PagedResult<CourseOfferingItem>? data, String? error})>
-      layDanhSach({int? termId, int trang = 1, int soLuong = 20}) async {
+      layDanhSach({
+    int? termId,
+    int trang = 1,
+    int soLuong = 20,
+    bool? dangMoDangKy,
+  }) async {
     try {
       final uri = ApiConfig.courseOfferings(
-          termId: termId, page: trang, pageSize: soLuong);
+        termId: termId,
+        page: trang,
+        pageSize: soLuong,
+        dangMoDangKy: dangMoDangKy,
+      );
       final res = await _client.get(uri).timeout(ApiConfig.timeout);
 
       if (res.statusCode == 200) {

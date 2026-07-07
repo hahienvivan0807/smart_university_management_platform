@@ -4,6 +4,7 @@ import 'package:smart_university_management_platform/core/theme.dart';
 import 'package:smart_university_management_platform/data/models/major.dart';
 import 'package:smart_university_management_platform/data/services/major_service.dart';
 import 'package:smart_university_management_platform/main.dart';
+import 'package:smart_university_management_platform/shared/widgets/skeleton.dart';
 import 'major_form_screen.dart';
 
 /// Danh sách ngành (lọc theo khoa nếu có [facultyId]). CRUD cho Admin/AcademicOffice.
@@ -139,7 +140,7 @@ class _MajorListScreenState extends State<MajorListScreen> {
   }
 
   Widget _buildBody() {
-    if (_dangTai) return const Center(child: CircularProgressIndicator());
+    if (_dangTai) return const SkeletonListView();
 
     if (_loi != null) {
       return _ErrorView(message: _loi!, onRetry: _taiDanhSach);

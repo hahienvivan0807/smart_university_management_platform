@@ -4,6 +4,7 @@ import 'package:smart_university_management_platform/core/theme.dart';
 import 'package:smart_university_management_platform/data/models/admin_class.dart';
 import 'package:smart_university_management_platform/data/services/admin_class_service.dart';
 import 'package:smart_university_management_platform/main.dart';
+import 'package:smart_university_management_platform/shared/widgets/skeleton.dart';
 import 'admin_class_form_screen.dart';
 
 /// Danh sách lớp hành chính (lọc theo chương trình nếu có [programId]).
@@ -190,7 +191,7 @@ class _AdminClassListScreenState extends State<AdminClassListScreen> {
   }
 
   Widget _buildBody() {
-    if (_dangTai) return const Center(child: CircularProgressIndicator());
+    if (_dangTai) return const SkeletonListView();
 
     if (_loi != null) {
       return _ErrorView(message: _loi!, onRetry: _taiDanhSach);

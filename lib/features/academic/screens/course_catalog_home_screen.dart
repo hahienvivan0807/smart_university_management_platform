@@ -4,6 +4,7 @@ import 'package:smart_university_management_platform/core/theme.dart';
 import 'package:smart_university_management_platform/data/models/faculty.dart';
 import 'package:smart_university_management_platform/data/services/faculty_service.dart';
 import 'package:smart_university_management_platform/main.dart';
+import 'package:smart_university_management_platform/shared/widgets/skeleton.dart';
 import 'course_list_screen.dart';
 
 // ============================================================================
@@ -16,7 +17,12 @@ import 'course_list_screen.dart';
 // ============================================================================
 
 class CourseCatalogHomeScreen extends StatefulWidget {
-  const CourseCatalogHomeScreen({super.key});
+  const CourseCatalogHomeScreen({super.key, this.laManHinhDoc = false});
+
+  /// true = màn này được `Navigator.push` như 1 màn độc lập (từ Dashboard)
+  /// → cần AppBar + nút quay về riêng. false (mặc định) = nhúng trong tab
+  /// AppShell, AppShell đã có AppBar rồi.
+  final bool laManHinhDoc;
 
   @override
   State<CourseCatalogHomeScreen> createState() =>
@@ -80,12 +86,21 @@ class _CourseCatalogHomeScreenState extends State<CourseCatalogHomeScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: context.canvas,
+      appBar: widget.laManHinhDoc
+          ? AppBar(
+              backgroundColor: context.canvas,
+              surfaceTintColor: Colors.transparent,
+              elevation: 0,
+              title: Text('Danh mục môn học',
+                  style: Theme.of(context).textTheme.headlineSmall),
+            )
+          : null, // nhúng trong tab AppShell — AppShell đã có AppBar với tên section
       body: _buildBody(),
     );
   }
 
   Widget _buildBody() {
-    if (_dangTai) return const Center(child: CircularProgressIndicator());
+    if (_dangTai) return const SkeletonListView();
 
     if (_loi != null) {
       return _ErrorView(message: _loi!, onRetry: _taiDanhSach);

@@ -4,6 +4,7 @@ import 'package:smart_university_management_platform/core/theme.dart';
 import 'package:smart_university_management_platform/data/models/enrollment.dart';
 import 'package:smart_university_management_platform/data/services/enrollment_service.dart';
 import 'package:smart_university_management_platform/main.dart';
+import 'package:smart_university_management_platform/shared/widgets/skeleton.dart';
 import 'attendance_history_screen.dart';
 import 'my_timetable_screen.dart';
 import 'qr_scan_screen.dart';
@@ -13,12 +14,13 @@ import 'qr_scan_screen.dart';
 class MyEnrollmentsScreen extends StatefulWidget {
   const MyEnrollmentsScreen({
     super.key,
-    required this.termId,
-    required this.termLabel,
+    this.termId,
+    this.termLabel,
   });
 
-  final int termId;
-  final String termLabel;
+  /// null = hiện tất cả học kỳ (mỗi dòng tự hiện học kỳ của nó).
+  final int? termId;
+  final String? termLabel;
 
   @override
   State<MyEnrollmentsScreen> createState() => _MyEnrollmentsScreenState();
@@ -134,7 +136,7 @@ class _MyEnrollmentsScreenState extends State<MyEnrollmentsScreen> {
             Text('Đăng ký của tôi',
                 style: Theme.of(context).textTheme.headlineSmall),
             Text(
-              widget.termLabel,
+              widget.termLabel ?? 'Tất cả học kỳ',
               style: Theme.of(context)
                   .textTheme
                   .bodyMedium
@@ -143,19 +145,20 @@ class _MyEnrollmentsScreenState extends State<MyEnrollmentsScreen> {
           ],
         ),
         actions: [
-          IconButton(
-            tooltip: 'Thời khóa biểu',
-            icon: const Icon(Icons.calendar_month_outlined),
-            onPressed: () => Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (_) => MyTimetableScreen(
-                  termId: widget.termId,
-                  termLabel: widget.termLabel,
+          if (widget.termId != null)
+            IconButton(
+              tooltip: 'Thời khóa biểu',
+              icon: const Icon(Icons.calendar_month_outlined),
+              onPressed: () => Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => MyTimetableScreen(
+                    termId: widget.termId!,
+                    termLabel: widget.termLabel ?? 'Học kỳ',
+                  ),
                 ),
               ),
             ),
-          ),
         ],
       ),
       body: _buildBody(),
@@ -163,7 +166,7 @@ class _MyEnrollmentsScreenState extends State<MyEnrollmentsScreen> {
   }
 
   Widget _buildBody() {
-    if (_dangTai) return const Center(child: CircularProgressIndicator());
+    if (_dangTai) return const SkeletonListView();
 
     if (_loi != null) {
       return _ErrorView(message: _loi!, onRetry: _taiDanhSach);
@@ -204,6 +207,7 @@ class _MyEnrollmentsScreenState extends State<MyEnrollmentsScreen> {
         separatorBuilder: (_, _) => const SizedBox(height: AppSpacing.xs),
         itemBuilder: (_, i) => _EnrollmentTile(
           mon: _danhSach[i],
+          hienThiHocKy: widget.termId == null,
           onHuy: () => _huyDangKy(_danhSach[i]),
           onQuetQr: () => _quetQr(_danhSach[i]),
           onXemLichSu: () => _xemLichSu(_danhSach[i]),
@@ -218,12 +222,16 @@ class _MyEnrollmentsScreenState extends State<MyEnrollmentsScreen> {
 class _EnrollmentTile extends StatefulWidget {
   const _EnrollmentTile({
     required this.mon,
+    required this.hienThiHocKy,
     required this.onHuy,
     required this.onQuetQr,
     required this.onXemLichSu,
   });
 
   final EnrollmentItem mon;
+
+  /// true = hiện thêm dòng học kỳ (dùng khi màn đang gộp nhiều học kỳ).
+  final bool hienThiHocKy;
   final VoidCallback onHuy;
   final VoidCallback onQuetQr;
   final VoidCallback onXemLichSu;
@@ -273,11 +281,20 @@ class _EnrollmentTileState extends State<_EnrollmentTile> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(mon.courseName,
-                      style: Theme.of(context).textTheme.titleMedium),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Text(mon.courseName,
+                            style: Theme.of(context).textTheme.titleMedium),
+                      ),
+                      _TrangThaiBadge(mon: mon),
+                    ],
+                  ),
                   const SizedBox(height: 3),
                   Text(
-                    '${mon.offeringCode} · ${mon.courseCode}',
+                    widget.hienThiHocKy
+                        ? '${mon.offeringCode} · ${mon.courseCode} · ${mon.termLabel}'
+                        : '${mon.offeringCode} · ${mon.courseCode}',
                     style: Theme.of(context)
                         .textTheme
                         .bodyMedium
@@ -303,8 +320,8 @@ class _EnrollmentTileState extends State<_EnrollmentTile> {
                   ),
                   const SizedBox(height: AppSpacing.sm + 2),
 
-                  // Nút quét QR + lịch sử
-                  if (mon.daDangKy) ...[
+                  // Nút quét QR + lịch sử — chỉ khi đang học chính thức
+                  if (mon.dangHoc) ...[
                     Row(
                       children: [
                         Expanded(
@@ -372,11 +389,11 @@ class _EnrollmentTileState extends State<_EnrollmentTile> {
                             ),
                           )
                         : OutlinedButton(
-                            onPressed: mon.daDangKy ? _xuLyHuy : null,
+                            onPressed: mon.coTheHuy ? _xuLyHuy : null,
                             style: OutlinedButton.styleFrom(
                               foregroundColor: AppColors.red,
                               side: BorderSide(
-                                color: mon.daDangKy
+                                color: mon.coTheHuy
                                     ? AppColors.red.withValues(alpha: 0.5)
                                     : context.border,
                               ),
@@ -387,12 +404,14 @@ class _EnrollmentTileState extends State<_EnrollmentTile> {
                               padding: EdgeInsets.zero,
                             ),
                             child: Text(
-                              mon.daDangKy ? 'Hủy đăng ký' : 'Đã hủy',
+                              mon.coTheHuy
+                                  ? (mon.dangCho ? 'Rời hàng chờ' : 'Hủy đăng ký')
+                                  : mon.trangThaiText,
                               style: Theme.of(context)
                                   .textTheme
                                   .labelMedium
                                   ?.copyWith(
-                                    color: mon.daDangKy
+                                    color: mon.coTheHuy
                                         ? AppColors.red
                                         : context.muted,
                                     fontWeight: FontWeight.w600,
@@ -405,6 +424,41 @@ class _EnrollmentTileState extends State<_EnrollmentTile> {
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+// ── Badge trạng thái (Đang học/Đang chờ/Đậu/Rớt) ─────────────────────────────
+
+class _TrangThaiBadge extends StatelessWidget {
+  const _TrangThaiBadge({required this.mon});
+  final EnrollmentItem mon;
+
+  Color _mau() {
+    if (mon.daDau) return const Color(0xFF16A34A);
+    if (mon.daRot) return AppColors.red;
+    if (mon.dangCho) return const Color(0xFFD97706);
+    return AppColors.accent;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final mau = _mau();
+    return Container(
+      padding:
+          const EdgeInsets.symmetric(horizontal: AppSpacing.xs + 2, vertical: 2),
+      decoration: BoxDecoration(
+        color: mau.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(AppRadius.sm),
+      ),
+      child: Text(
+        mon.trangThaiText,
+        style: Theme.of(context).textTheme.labelSmall?.copyWith(
+              color: mau,
+              fontWeight: FontWeight.w600,
+              fontSize: 10,
+            ),
       ),
     );
   }

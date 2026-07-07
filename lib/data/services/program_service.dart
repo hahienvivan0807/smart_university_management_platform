@@ -53,6 +53,36 @@ class ProgramService {
     }
   }
 
+  /// Suy ra programId của chính sinh viên đang đăng nhập (qua AdminClass) — dùng để
+  /// mặc định mở đúng chương trình đào tạo của họ, không bắt tự tìm.
+  Future<({int? data, String? error})> layProgramIdCuaSinhVien(
+      int userId) async {
+    try {
+      final resProfile = await _client
+          .get(ApiConfig.studentProfile(userId))
+          .timeout(ApiConfig.timeout);
+      if (resProfile.statusCode != 200) {
+        return (data: null, error: _extractError(resProfile));
+      }
+      final profile = jsonDecode(resProfile.body) as Map<String, dynamic>;
+      final adminClassId = profile['adminClassId'] as int?;
+      if (adminClassId == null) {
+        return (data: null, error: 'Bạn chưa được gán vào lớp hành chính nào.');
+      }
+
+      final resClass = await _client
+          .get(ApiConfig.adminClass(adminClassId))
+          .timeout(ApiConfig.timeout);
+      if (resClass.statusCode != 200) {
+        return (data: null, error: _extractError(resClass));
+      }
+      final lop = jsonDecode(resClass.body) as Map<String, dynamic>;
+      return (data: lop['programId'] as int?, error: null);
+    } catch (_) {
+      return (data: null, error: 'Không thể kết nối đến server.');
+    }
+  }
+
   // ── WRITE (chỉ Admin / AcademicOffice) ───────────────────────────────────
 
   /// Tạo mới chương trình đào tạo — POST /api/programs.
