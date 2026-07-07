@@ -6,10 +6,13 @@ import 'package:smart_university_management_platform/data/models/course_offering
 import 'package:smart_university_management_platform/data/services/attendance_service.dart';
 import 'package:smart_university_management_platform/data/services/course_offering_service.dart';
 import 'package:smart_university_management_platform/data/services/enrollment_service.dart';
+import 'package:smart_university_management_platform/data/services/leave_request_service.dart';
 import 'package:smart_university_management_platform/main.dart';
+import 'package:smart_university_management_platform/shared/widgets/skeleton.dart';
 import 'attendance_session_screen.dart';
 import 'course_offering_form_screen.dart';
 import 'document_list_screen.dart';
+import 'leave_request_screen.dart';
 import 'my_enrollments_screen.dart';
 import 'roster_screen.dart';
 
@@ -38,8 +41,10 @@ class _CourseOfferingListScreenState extends State<CourseOfferingListScreen> {
   final _dichVu = CourseOfferingService(authenticatedClient);
   final _enrollService = EnrollmentService(authenticatedClient);
   final _attendanceSv = AttendanceService(authenticatedClient);
+  final _leaveRequestSv = LeaveRequestService(authenticatedClient);
 
   List<CourseOfferingItem> _danhSach = [];
+  Set<int> _lopDangTamNgung = {};
   bool _dangTai = true;
   String? _loi;
 
@@ -63,13 +68,48 @@ class _CourseOfferingListScreenState extends State<CourseOfferingListScreen> {
     });
 
     final ketQua = await _dichVu.layDanhSach(termId: widget.termId);
+    var danhSach = ketQua.data?.items ?? [];
+
+    // Giảng viên chỉ xem lớp mình phụ trách — tránh nhầm lẫn với lớp của
+    // giảng viên khác (trước đây thấy TẤT CẢ lớp trong kỳ, dễ bấm nhầm nút
+    // điểm danh/roster vào lớp không phải của mình rồi bị 403).
+    if (_laGiangVien && !_coQuyenGhi) {
+      final userId = session.me?.userId;
+      if (userId != null) {
+        danhSach = danhSach.where((l) => l.lecturerUserId == userId).toList();
+      }
+    }
 
     if (!mounted) return;
     setState(() {
       _dangTai = false;
-      _danhSach = ketQua.data?.items ?? [];
+      _danhSach = danhSach;
       _loi = ketQua.error;
     });
+
+    // Tải riêng, không chặn hiển thị danh sách chính nếu lỗi/chậm.
+    if (_danhSach.isNotEmpty) _taiTrangThaiTamNgung();
+  }
+
+  Future<void> _taiTrangThaiTamNgung() async {
+    final ids = _danhSach.map((e) => e.courseOfferingId).toList();
+    final ketQua = await _leaveRequestSv.layTamNgungHomNay(ids);
+    if (!mounted || ketQua.data == null) return;
+    setState(() {
+      _lopDangTamNgung = ketQua.data!.map((e) => e.courseOfferingId).toSet();
+    });
+  }
+
+  void _xinNghiDay(CourseOfferingItem lopHP) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => LeaveRequestScreen(
+          courseOfferingId: lopHP.courseOfferingId,
+          offeringCode: lopHP.code,
+        ),
+      ),
+    );
   }
 
   Future<void> _moDiemDanh(CourseOfferingItem lopHP) async {
@@ -328,7 +368,7 @@ class _CourseOfferingListScreenState extends State<CourseOfferingListScreen> {
   }
 
   Widget _buildBody() {
-    if (_dangTai) return const Center(child: CircularProgressIndicator());
+    if (_dangTai) return const SkeletonListView();
 
     if (_loi != null) {
       return _ErrorView(message: _loi!, onRetry: _taiDanhSach);
@@ -352,8 +392,13 @@ class _CourseOfferingListScreenState extends State<CourseOfferingListScreen> {
                     color: AppColors.accent, size: 28),
               ),
               const SizedBox(height: AppSpacing.md),
-              Text('Chưa có lớp học phần nào.',
-                  style: Theme.of(context).textTheme.bodyMedium),
+              Text(
+                _laGiangVien && !_coQuyenGhi
+                    ? 'Bạn chưa phụ trách lớp học phần nào.'
+                    : 'Chưa có lớp học phần nào.',
+                textAlign: TextAlign.center,
+                style: Theme.of(context).textTheme.bodyMedium,
+              ),
             ],
           ),
         ),
@@ -377,10 +422,12 @@ class _CourseOfferingListScreenState extends State<CourseOfferingListScreen> {
           laSinhVien: _laSinhVien,
           laGiangVien: _laGiangVien,
           coQuyenGhi: _coQuyenGhi,
+          dangTamNgung: _lopDangTamNgung.contains(_danhSach[i].courseOfferingId),
           onDangKy: () => _dangKy(_danhSach[i]),
           onXemRoster: () => _xemRoster(_danhSach[i]),
           onMoDiemDanh: () => _moDiemDanh(_danhSach[i]),
           onXemTaiLieu: () => _xemTaiLieu(_danhSach[i]),
+          onXinNghiDay: () => _xinNghiDay(_danhSach[i]),
           onSua: () => _moForm(lop: _danhSach[i]),
           onHuyLop: () => _huyLop(_danhSach[i]),
           onDoiGiangVien: () => _doiGiangVien(_danhSach[i]),
@@ -398,10 +445,12 @@ class _LopHPTile extends StatefulWidget {
     required this.laSinhVien,
     required this.laGiangVien,
     required this.coQuyenGhi,
+    required this.dangTamNgung,
     required this.onDangKy,
     required this.onXemRoster,
     required this.onMoDiemDanh,
     required this.onXemTaiLieu,
+    required this.onXinNghiDay,
     required this.onSua,
     required this.onHuyLop,
     required this.onDoiGiangVien,
@@ -411,10 +460,14 @@ class _LopHPTile extends StatefulWidget {
   final bool laSinhVien;
   final bool laGiangVien;
   final bool coQuyenGhi;
+
+  /// true = lớp này đang trong khoảng ngày giảng viên xin nghỉ đã được duyệt (đúng hôm nay).
+  final bool dangTamNgung;
   final VoidCallback onDangKy;
   final VoidCallback onXemRoster;
   final VoidCallback onMoDiemDanh;
   final VoidCallback onXemTaiLieu;
+  final VoidCallback onXinNghiDay;
   final VoidCallback onSua;
   final VoidCallback onHuyLop;
   final VoidCallback onDoiGiangVien;
@@ -509,7 +562,21 @@ class _LopHPTileState extends State<_LopHPTile> {
                           padding: const EdgeInsets.all(4),
                           onPressed: widget.onXemTaiLieu,
                         ),
+                        if (widget.laGiangVien) ...[
+                          const SizedBox(width: 4),
+                          IconButton(
+                            tooltip: 'Xin nghỉ dạy',
+                            icon: const Icon(Icons.event_busy_rounded, size: 18),
+                            constraints: const BoxConstraints(),
+                            padding: const EdgeInsets.all(4),
+                            onPressed: widget.onXinNghiDay,
+                          ),
+                        ],
                         const SizedBox(width: 4),
+                        if (widget.dangTamNgung) ...[
+                          const _TamNgungBadge(),
+                          const SizedBox(width: 4),
+                        ],
                         _TrangThaiBadge(dangMo: lopHP.dangMo),
                         if (widget.coQuyenGhi)
                           _ActionMenu(
@@ -732,6 +799,32 @@ class _ActionMenu extends StatelessWidget {
 }
 
 enum _MenuAction { sua, doiGiangVien, huyLop }
+
+// ── Badge "Tạm ngưng" — giảng viên xin nghỉ đã được duyệt, đúng hôm nay ──────
+
+class _TamNgungBadge extends StatelessWidget {
+  const _TamNgungBadge();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(
+          horizontal: AppSpacing.xs + 2, vertical: 2),
+      decoration: BoxDecoration(
+        color: AppColors.red.withValues(alpha: 0.1),
+        borderRadius: BorderRadius.circular(AppRadius.sm),
+      ),
+      child: Text(
+        'Tạm ngưng',
+        style: Theme.of(context).textTheme.labelSmall?.copyWith(
+              color: AppColors.red,
+              fontWeight: FontWeight.w600,
+              fontSize: 10,
+            ),
+      ),
+    );
+  }
+}
 
 // ── Trạng thái lớp HP ─────────────────────────────────────────────────────────
 

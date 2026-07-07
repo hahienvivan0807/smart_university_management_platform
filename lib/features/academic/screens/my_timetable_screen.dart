@@ -3,7 +3,9 @@ import 'package:flutter/material.dart';
 import 'package:smart_university_management_platform/core/theme.dart';
 import 'package:smart_university_management_platform/data/models/enrollment.dart';
 import 'package:smart_university_management_platform/data/services/enrollment_service.dart';
+import 'package:smart_university_management_platform/data/services/leave_request_service.dart';
 import 'package:smart_university_management_platform/main.dart';
+import 'package:smart_university_management_platform/shared/widgets/skeleton.dart';
 
 const _tenThu = {
   2: 'Thứ 2',
@@ -33,8 +35,10 @@ class MyTimetableScreen extends StatefulWidget {
 
 class _MyTimetableScreenState extends State<MyTimetableScreen> {
   final _dichVu = EnrollmentService(authenticatedClient);
+  final _leaveRequestSv = LeaveRequestService(authenticatedClient);
 
   List<TimetableEntry> _danhSach = [];
+  Set<int> _lopDangTamNgung = {};
   bool _dangTai = true;
   String? _loi;
 
@@ -55,6 +59,17 @@ class _MyTimetableScreenState extends State<MyTimetableScreen> {
       _dangTai = false;
       _danhSach = ketQua.data ?? [];
       _loi = ketQua.error;
+    });
+
+    if (_danhSach.isNotEmpty) _taiTrangThaiTamNgung();
+  }
+
+  Future<void> _taiTrangThaiTamNgung() async {
+    final ids = _danhSach.map((e) => e.courseOfferingId).toSet().toList();
+    final ketQua = await _leaveRequestSv.layTamNgungHomNay(ids);
+    if (!mounted || ketQua.data == null) return;
+    setState(() {
+      _lopDangTamNgung = ketQua.data!.map((e) => e.courseOfferingId).toSet();
     });
   }
 
@@ -86,7 +101,7 @@ class _MyTimetableScreenState extends State<MyTimetableScreen> {
   }
 
   Widget _buildBody() {
-    if (_dangTai) return const Center(child: CircularProgressIndicator());
+    if (_dangTai) return const SkeletonListView();
 
     if (_loi != null) {
       return _ErrorView(message: _loi!, onRetry: _taiThoiKhoaBieu);
@@ -148,7 +163,11 @@ class _MyTimetableScreenState extends State<MyTimetableScreen> {
               for (final mon in theoThu[thu]!)
                 Padding(
                   padding: const EdgeInsets.only(bottom: AppSpacing.xs),
-                  child: _TimetableTile(mon: mon),
+                  child: _TimetableTile(
+                    mon: mon,
+                    dangTamNgung:
+                        _lopDangTamNgung.contains(mon.courseOfferingId),
+                  ),
                 ),
             ],
           if (chuaXepLich.isNotEmpty) ...[
@@ -164,7 +183,10 @@ class _MyTimetableScreenState extends State<MyTimetableScreen> {
             for (final mon in chuaXepLich)
               Padding(
                 padding: const EdgeInsets.only(bottom: AppSpacing.xs),
-                child: _TimetableTile(mon: mon),
+                child: _TimetableTile(
+                  mon: mon,
+                  dangTamNgung: _lopDangTamNgung.contains(mon.courseOfferingId),
+                ),
               ),
           ],
         ],
@@ -176,8 +198,11 @@ class _MyTimetableScreenState extends State<MyTimetableScreen> {
 // ── Tile lớp học phần ─────────────────────────────────────────────────────────
 
 class _TimetableTile extends StatelessWidget {
-  const _TimetableTile({required this.mon});
+  const _TimetableTile({required this.mon, required this.dangTamNgung});
   final TimetableEntry mon;
+
+  /// true = giảng viên xin nghỉ đã được duyệt, đúng hôm nay.
+  final bool dangTamNgung;
 
   @override
   Widget build(BuildContext context) {
@@ -223,8 +248,33 @@ class _TimetableTile extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(mon.courseName,
-                    style: Theme.of(context).textTheme.titleMedium),
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(mon.courseName,
+                          style: Theme.of(context).textTheme.titleMedium),
+                    ),
+                    if (dangTamNgung) ...[
+                      const SizedBox(width: AppSpacing.xs),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: AppSpacing.xs + 2, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: AppColors.red.withValues(alpha: 0.1),
+                          borderRadius: BorderRadius.circular(AppRadius.sm),
+                        ),
+                        child: Text(
+                          'Tạm ngưng',
+                          style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                                color: AppColors.red,
+                                fontWeight: FontWeight.w600,
+                                fontSize: 10,
+                              ),
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
                 const SizedBox(height: 3),
                 Text(
                   mon.courseCode,

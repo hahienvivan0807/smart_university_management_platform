@@ -5,10 +5,12 @@ class CourseOfferingItem {
     required this.courseCode,
     required this.courseName,
     required this.courseCredits,
+    required this.lecturerUserId,
     required this.lecturerName,
     required this.capacity,
     required this.enrollmentCount,
     required this.status,
+    required this.termName,
     this.dayOfWeek,
     this.startTime,
     this.endTime,
@@ -20,7 +22,12 @@ class CourseOfferingItem {
   final String courseCode;
   final String courseName;
   final int courseCredits;
+  final int lecturerUserId;
   final String lecturerName;
+
+  /// VD: "HK1 2024-2025" — dùng để gom nhóm khi hiện các lớp đang mở đăng ký
+  /// thuộc nhiều học kỳ khác nhau cùng lúc (VD: học lại/học cải thiện).
+  final String termName;
 
   /// Sức chứa tối đa; null = không giới hạn
   final int? capacity;
@@ -47,10 +54,12 @@ class CourseOfferingItem {
         courseCode: json['courseCode'] as String,
         courseName: json['courseName'] as String,
         courseCredits: json['courseCredits'] as int,
+        lecturerUserId: json['lecturerUserId'] as int,
         lecturerName: json['lecturerName'] as String,
         capacity: json['capacity'] as int?,
         enrollmentCount: json['enrollmentCount'] as int? ?? 0,
         status: json['status'] as int,
+        termName: json['termName'] as String? ?? '',
         dayOfWeek: json['dayOfWeek'] as int?,
         startTime: json['startTime'] as String?,
         endTime: json['endTime'] as String?,
